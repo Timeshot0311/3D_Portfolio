@@ -4,6 +4,8 @@ import { OrbitControls } from '@react-three/drei';
 import RoomScene from './models/RoomScene';
 import VTuberView from './components/VTuberView';
 import * as THREE from 'three';
+import BackgroundMusic from './components/BackgroundMusic';
+
 
 function CameraSetup() {
   const controlsRef = useRef();
@@ -22,29 +24,31 @@ function CameraSetup() {
 
   return <OrbitControls ref={controlsRef} />;
 }
-
 export default function App() {
   return (
-    <Canvas
-      camera={{ fov: 50 }}
-      style={{ background: '#111' }}
-      gl={{
-        outputEncoding: THREE.sRGBEncoding,
-        toneMapping: THREE.NoToneMapping,
-      }}
-      onCreated={({ gl }) => {
-        gl.toneMappingExposure = 1.0;
-      }}
-    >
-      <ambientLight intensity={1.5} />
-      <directionalLight position={[10, 10, 10]} intensity={2} />
+    <>
+      <BackgroundMusic /> {/* ✅ Plays and toggles music */}
+      <Canvas
+        camera={{ fov: 50 }}
+        style={{ background: '#111' }}
+        gl={{
+          outputEncoding: THREE.sRGBEncoding,
+          toneMapping: THREE.NoToneMapping,
+        }}
+        onCreated={({ gl }) => {
+          gl.toneMappingExposure = 1.0;
+        }}
+      >
+        <ambientLight intensity={1.5} />
+        <directionalLight position={[10, 10, 10]} intensity={2} />
 
-      <Suspense fallback={null}>
-        <RoomScene />
-        <VTuberView />
-      </Suspense>
+        <Suspense fallback={null}>
+          <RoomScene />
+          <VTuberView />
+        </Suspense>
 
-      <CameraSetup />
-    </Canvas>
+        <CameraSetup />
+      </Canvas>
+    </>
   );
 }
