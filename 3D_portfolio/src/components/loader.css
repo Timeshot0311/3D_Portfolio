@@ -57,3 +57,16 @@
 .enter-btn:hover {
   background: #4db3d7;
 }
+
+/* fade out animation */
+.fade-out {
+  animation: fadeOut 0.7s ease forwards;
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+

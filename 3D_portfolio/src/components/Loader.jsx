@@ -1,9 +1,7 @@
-// src/components/Loader.jsx
-import { useProgress } from '@react-three/drei';
 import './loader.css';
 
-export default function Loader() {
-  const { progress } = useProgress();
+export default function Loader({ progress, onEnter }) {
+  const isComplete = progress >= 100;
 
   return (
     <div id="loading-overlay">
@@ -13,10 +11,21 @@ export default function Loader() {
         alt="Loading background"
       />
       <div className="loader-content">
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${progress}%` }} />
-        </div>
-        <p>{Math.floor(progress)}%</p>
+        {!isComplete ? (
+          <>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            
+          </>
+        ) : (
+          <button className="enter-btn" onClick={onEnter}>
+            Enter
+          </button>
+        )}
       </div>
     </div>
   );
