@@ -1,35 +1,43 @@
-import { Canvas, useThree } from '@react-three/fiber';
-import { Suspense, useRef, useEffect } from 'react';
-import { OrbitControls } from '@react-three/drei';
+import { Canvas } from '@react-three/fiber';
+import { Suspense, useState } from 'react';
+import { useProgress, useGLTF } from '@react-three/drei';
 import RoomScene from './models/RoomScene';
 import VTuberView from './components/VTuberView';
 import * as THREE from 'three';
 import BackgroundMusic from './components/BackgroundMusic';
+import Loader from './components/Loader';
+import FreeCameraControls from './components/FreeCameraControls';
 
 
-function CameraSetup() {
-  const controlsRef = useRef();
-  const { camera } = useThree();
+useGLTF.preload('/models/VTuber2.vrm');
 
-  useEffect(() => {
-    // Set camera position
-    camera.position.set(3.2760149821796496, 9.248895475354395, 3.654510368125121);
-
-    // Set orbit target
-    if (controlsRef.current) {
-      controlsRef.current.target.set(-2.305980016118677, 6.445352552440664, 0.23337845113867778);
-      controlsRef.current.update();
-    }
-  }, [camera]);
-
-  return <OrbitControls ref={controlsRef} />;
-}
 export default function App() {
+  const { progress } = useProgress();
+  const [showLoader, setShowLoader] = useState(true);
+  const [sceneVisible, setSceneVisible] = useState(false);
+  const [playMusic, setPlayMusic] = useState(false);
+
+  const handleEnter = () => {
+    const loaderEl = document.getElementById('loading-overlay');
+    if (loaderEl) loaderEl.classList.add('fade-out');
+
+    setTimeout(() => {
+      setShowLoader(false);
+      setSceneVisible(true);
+      setPlayMusic(true);
+    }, 700);
+  };
+
   return (
     <>
-      <BackgroundMusic /> {/* ✅ Plays and toggles music */}
+      {showLoader && (
+        <Loader progress={progress} onEnter={handleEnter} />
+      )}
+
+      {playMusic && <BackgroundMusic />}
+
       <Canvas
-        camera={{ fov: 50 }}
+        camera={{ fov: 75 }}
         style={{ background: '#111' }}
         gl={{
           outputEncoding: THREE.sRGBEncoding,
@@ -42,12 +50,14 @@ export default function App() {
         <ambientLight intensity={1.5} />
         <directionalLight position={[10, 10, 10]} intensity={2} />
 
-        <Suspense fallback={null}>
-          <RoomScene />
-          <VTuberView />
-        </Suspense>
+        {sceneVisible && (
+          <Suspense fallback={null}>
+            <RoomScene />
+            <VTuberView />
+          </Suspense>
+        )}
 
-        <CameraSetup />
+        {sceneVisible && <FreeCameraControls />}
       </Canvas>
     </>
   );

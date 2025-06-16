@@ -12,40 +12,46 @@ export default function VtuberView() {
   const bounds = {
     x: [-1.5, 1.5],
     y: [-1.5, 1.5],
-    z: [-2.5, -1.0], // depth in front of camera
+    z: [-2.5, -1.0],
   };
 
-  const { camera, scene, clock } = useThree();
+  const { camera, scene } = useThree();
 
   useEffect(() => {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
-    loader.load('/models/VTuber2.vrm', (gltf) => {
-      const vrm = gltf.userData.vrm;
+    const path = '/models/VTuber2.vrm';
 
-      VRMUtils.removeUnnecessaryJoints?.(vrm.scene);
-      vrm.scene.rotation.y = Math.PI;
+    loader.load(
+      path,
+      (gltf) => {
+        const vrm = gltf.userData.vrm;
 
-      avatarRef.current.add(vrm.scene);
-      scene.add(avatarRef.current);
+        VRMUtils.removeUnnecessaryJoints?.(vrm.scene);
+        vrm.scene.rotation.y = Math.PI;
 
-      // 🎥 Animation if present
-      if (vrm.animations?.length > 0) {
-        const mixer = new THREE.AnimationMixer(vrm.scene);
-        mixer.clipAction(vrm.animations[0]).play();
-        mixerRef.current = mixer;
+        avatarRef.current.add(vrm.scene);
+        scene.add(avatarRef.current);
+
+        if (vrm.animations?.length > 0) {
+          const mixer = new THREE.AnimationMixer(vrm.scene);
+          mixer.clipAction(vrm.animations[0]).play();
+          mixerRef.current = mixer;
+        }
+      },
+      undefined,
+      (error) => {
+        console.error('Failed to load VTuber model:', error);
       }
-    });
+    );
   }, [scene]);
 
   useFrame((_, delta) => {
     if (!avatarRef.current) return;
 
-    // Idle roaming within bounds
     const pos = avatarRef.current.position;
 
-    // Change direction occasionally
     if (Math.random() < 0.01) {
       direction.current.set(
         THREE.MathUtils.randFloatSpread(0.01),
@@ -54,10 +60,8 @@ export default function VtuberView() {
       );
     }
 
-    // Apply movement
     pos.add(direction.current);
 
-    // Clamp to bounds relative to camera
     const cameraDir = new THREE.Vector3();
     camera.getWorldDirection(cameraDir);
     const basePos = camera.position.clone().add(cameraDir.multiplyScalar(2));
@@ -66,10 +70,8 @@ export default function VtuberView() {
     pos.y = THREE.MathUtils.clamp(pos.y, basePos.y + bounds.y[0], basePos.y + bounds.y[1]);
     pos.z = THREE.MathUtils.clamp(pos.z, basePos.z + bounds.z[0], basePos.z + bounds.z[1]);
 
-    // Always face camera
     avatarRef.current.lookAt(camera.position);
 
-    // Animate
     if (mixerRef.current) {
       mixerRef.current.update(delta);
     }
