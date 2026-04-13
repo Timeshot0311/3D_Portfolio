@@ -5,77 +5,192 @@ import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
 
 export default function VtuberView() {
-  const avatarRef = useRef(new THREE.Group());
-  const mixerRef = useRef(null);
-  const velocity = useRef(new THREE.Vector3());
-  const direction = useRef(new THREE.Vector3());
-  const bounds = {
-    x: [-1.5, 1.5],
-    y: [-1.5, 1.5],
-    z: [-2.5, -1.0],
-  };
+  const groupRef   = useRef(new THREE.Group());
+  const vrmRef     = useRef(null);
+  const mixerRef   = useRef(null);
+
+  // Mouse tracking (NDC -1..1)
+  const mouseRef   = useRef(new THREE.Vector2(0, 0));
+
+  // Smooth idle float
+  const floatOffset = useRef(new THREE.Vector3());
+  const floatTarget = useRef(new THREE.Vector3());
+  const floatTimer  = useRef(2.0); // seconds until next drift target
+
+  // Blinking state machine
+  const blinkTimer  = useRef(THREE.MathUtils.randFloat(2, 5));
+  const blinkPhase  = useRef(0); // 0=open, 1=closing, 2=opening
+  const blinkVal    = useRef(0);
+
+  // Reusable vectors (avoid per-frame GC)
+  const _right   = useRef(new THREE.Vector3());
+  const _up      = useRef(new THREE.Vector3());
+  const _fwd     = useRef(new THREE.Vector3());
+  const _target  = useRef(new THREE.Vector3());
+  const _mouseWS = useRef(new THREE.Vector3());
+  const _dir     = useRef(new THREE.Vector3());
 
   const { camera, scene } = useThree();
 
+  // ── Mouse listener ────────────────────────────────────────────────────────
   useEffect(() => {
+    const onMove = (e) => {
+      mouseRef.current.set(
+        (e.clientX / window.innerWidth)  *  2 - 1,
+       -(e.clientY / window.innerHeight) *  2 + 1
+      );
+    };
+    window.addEventListener('mousemove', onMove);
+    return () => window.removeEventListener('mousemove', onMove);
+  }, []);
+
+  // ── VRM load ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const group = groupRef.current;
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
-    const path = '/models/VTuber2.vrm';
-
     loader.load(
-      path,
+      '/models/VTuber2.vrm',
       (gltf) => {
         const vrm = gltf.userData.vrm;
 
         VRMUtils.removeUnnecessaryJoints?.(vrm.scene);
-        vrm.scene.rotation.y = Math.PI;
 
-        avatarRef.current.add(vrm.scene);
-        scene.add(avatarRef.current);
+        // rotateVRM0 handles VRM0 → correct +Z facing; falls back gracefully on VRM1
+        if (VRMUtils.rotateVRM0) {
+          VRMUtils.rotateVRM0(vrm);
+        } else {
+          vrm.scene.rotation.y = Math.PI;
+        }
 
-        if (vrm.animations?.length > 0) {
+        vrmRef.current = vrm;
+        group.add(vrm.scene);
+        scene.add(group);
+
+        // FIX: animations live on gltf.animations, NOT vrm.animations
+        if (gltf.animations?.length > 0) {
           const mixer = new THREE.AnimationMixer(vrm.scene);
-          mixer.clipAction(vrm.animations[0]).play();
+          gltf.animations.forEach((clip) => mixer.clipAction(clip).play());
           mixerRef.current = mixer;
         }
       },
       undefined,
-      (error) => {
-        console.error('Failed to load VTuber model:', error);
-      }
+      (err) => console.error('VTuber load failed:', err)
     );
+
+    return () => {
+      // Cleanup on unmount
+      if (group.parent) scene.remove(group);
+    };
   }, [scene]);
 
+  // ── Per-frame update ──────────────────────────────────────────────────────
   useFrame((_, delta) => {
-    if (!avatarRef.current) return;
+    const group = groupRef.current;
+    const vrm   = vrmRef.current;
+    if (!group) return;
 
-    const pos = avatarRef.current.position;
+    // ── 1. POSITION: pin to left side of camera frustum ──────────────────
+    //
+    // Extract camera axes from its world matrix
+    camera.matrix.extractBasis(
+      _right.current,   // camera's +X
+      _up.current,      // camera's +Y
+      _fwd.current      // camera's +Z  (world-space, points BEHIND camera)
+    );
+    // Camera's forward is -Z in view space, so negate the extracted column
+    _fwd.current.negate();
 
-    if (Math.random() < 0.01) {
-      direction.current.set(
-        THREE.MathUtils.randFloatSpread(0.01),
-        THREE.MathUtils.randFloatSpread(0.01),
-        THREE.MathUtils.randFloatSpread(0.01)
+    const dist   = 2.8;     // units in front of camera
+    const leftNDC  = -0.55; // NDC X: left side (-1 = far left, 0 = centre)
+    const downNDC  = -0.35; // NDC Y: slightly below centre
+
+    const fovRad = camera.fov * (Math.PI / 180);
+    const halfH  = Math.tan(fovRad / 2) * dist;
+    const halfW  = halfH * (camera.aspect ?? (window.innerWidth / window.innerHeight));
+
+    _target.current
+      .copy(camera.position)
+      .addScaledVector(_fwd.current,   dist)
+      .addScaledVector(_right.current, leftNDC * halfW)
+      .addScaledVector(_up.current,    downNDC * halfH);
+
+    // ── 2. IDLE FLOAT: smooth random drift ───────────────────────────────
+    floatTimer.current -= delta;
+    if (floatTimer.current <= 0) {
+      floatTarget.current.set(
+        THREE.MathUtils.randFloatSpread(0.12),
+        THREE.MathUtils.randFloatSpread(0.08),
+        THREE.MathUtils.randFloatSpread(0.04)
       );
+      floatTimer.current = THREE.MathUtils.randFloat(1.5, 3.0);
+    }
+    floatOffset.current.lerp(floatTarget.current, delta * 1.2);
+    _target.current.add(floatOffset.current);
+
+    // Lerp group toward target — smooth, no jitter
+    group.position.lerp(_target.current, delta * 6);
+
+    // ── 3. FACE CAMERA: Y-only rotation, no lookAt flipping ──────────────
+    _dir.current.subVectors(camera.position, group.position);
+    _dir.current.y = 0;
+    if (_dir.current.lengthSq() > 0.0001) {
+      const targetAngle = Math.atan2(_dir.current.x, _dir.current.z);
+      // Lerp angle via shortest path
+      const curr  = group.rotation.y;
+      const diff  = ((targetAngle - curr + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      group.rotation.y += diff * Math.min(delta * 5, 1);
     }
 
-    pos.add(direction.current);
+    // ── 4. HEAD LOOK-AT MOUSE (via VRM lookAt API) ───────────────────────
+    if (vrm?.lookAt) {
+      // Unproject mouse NDC → world ray, place target 3 units along it
+      _mouseWS.current.set(mouseRef.current.x, mouseRef.current.y, 0.5);
+      _mouseWS.current.unproject(camera);
+      _mouseWS.current.sub(camera.position).normalize();
+      _mouseWS.current.multiplyScalar(3).add(camera.position);
 
-    const cameraDir = new THREE.Vector3();
-    camera.getWorldDirection(cameraDir);
-    const basePos = camera.position.clone().add(cameraDir.multiplyScalar(2));
-
-    pos.x = THREE.MathUtils.clamp(pos.x, basePos.x + bounds.x[0], basePos.x + bounds.x[1]);
-    pos.y = THREE.MathUtils.clamp(pos.y, basePos.y + bounds.y[0], basePos.y + bounds.y[1]);
-    pos.z = THREE.MathUtils.clamp(pos.z, basePos.z + bounds.z[0], basePos.z + bounds.z[1]);
-
-    avatarRef.current.lookAt(camera.position);
-
-    if (mixerRef.current) {
-      mixerRef.current.update(delta);
+      vrm.lookAt.lookAt(_mouseWS.current);
     }
+
+    // ── 5. BLINK (expressionManager) ─────────────────────────────────────
+    if (vrm?.expressionManager) {
+      blinkTimer.current -= delta;
+
+      const BLINK_DUR = 0.08; // seconds for close / open
+
+      if (blinkPhase.current === 0 && blinkTimer.current <= 0) {
+        blinkPhase.current = 1; // start closing
+      }
+
+      if (blinkPhase.current === 1) {
+        blinkVal.current = Math.min(1, blinkVal.current + delta / BLINK_DUR);
+        if (blinkVal.current >= 1) blinkPhase.current = 2;
+      } else if (blinkPhase.current === 2) {
+        blinkVal.current = Math.max(0, blinkVal.current - delta / BLINK_DUR);
+        if (blinkVal.current <= 0) {
+          blinkPhase.current = 0;
+          blinkTimer.current = THREE.MathUtils.randFloat(2, 5); // next blink
+        }
+      }
+
+      // Try 'blink' preset; fall back to separate left/right
+      if (vrm.expressionManager.getExpressionTrackName?.('blink') !== undefined
+          || vrm.expressionManager.getValue?.('blink') !== undefined) {
+        vrm.expressionManager.setValue('blink', blinkVal.current);
+      } else {
+        vrm.expressionManager.setValue?.('blinkLeft',  blinkVal.current);
+        vrm.expressionManager.setValue?.('blinkRight', blinkVal.current);
+      }
+    }
+
+    // ── 6. UPDATE VRM (CRITICAL — spring bones, expressions, lookAt) ──────
+    if (vrm) vrm.update(delta);
+
+    // ── 7. UPDATE ANIMATION MIXER ─────────────────────────────────────────
+    if (mixerRef.current) mixerRef.current.update(delta);
   });
 
-  return <primitive object={avatarRef.current} />;
+  return <primitive object={groupRef.current} />;
 }

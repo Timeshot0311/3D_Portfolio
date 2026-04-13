@@ -40,11 +40,9 @@ export default function App() {
         camera={{ fov: 75 }}
         style={{ background: '#111' }}
         gl={{
-          outputEncoding: THREE.sRGBEncoding,
-          toneMapping: THREE.NoToneMapping,
-        }}
-        onCreated={({ gl }) => {
-          gl.toneMappingExposure = 1.0;
+          outputColorSpace: THREE.SRGBColorSpace,
+          toneMapping: THREE.LinearToneMapping,
+          toneMappingExposure: 1.0,
         }}
       >
         <ambientLight intensity={1.5} />
