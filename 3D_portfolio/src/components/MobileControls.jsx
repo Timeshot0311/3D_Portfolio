@@ -1,149 +1,137 @@
 // src/components/MobileControls.jsx
 //
-// Touch controls for mobile:
-//   Left half  → virtual joystick  (move forward/back/strafe)
-//   Right half → drag to look      (camera yaw + pitch)
-//   Buttons 1–4 along the top → camera presets
+// Mobile touch controls — only active on touch devices (zero overhead on desktop).
 //
-// This component lives inside the R3F <Canvas> so it can use useThree/useFrame,
-// but renders its UI into document.body via React.createPortal.
+// Default mode  — same as desktop: preset buttons shown, free camera is opt-in.
+// Free mode     — virtual joystick (left) + drag to look (right) + exit button.
+// Preset mode   — tap a named button to smoothly lerp to that viewpoint.
 
 import { createPortal } from 'react-dom';
 import { useThree, useFrame } from '@react-three/fiber';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { CAMERA_PRESETS } from './FreeCameraControls';
 
-// ── Detect touch device (evaluated once at module load) ────────────────────
 const IS_TOUCH = typeof window !== 'undefined' &&
   ('ontouchstart' in window || navigator.maxTouchPoints > 0);
 
-// ── Constants ──────────────────────────────────────────────────────────────
-const JOYSTICK_RADIUS   = 48;   // px — outer ring
-const KNOB_RADIUS       = 20;   // px — inner knob
-const MOVE_SPEED        = 5;
-const LOOK_SENSITIVITY  = 0.003;
-const PITCH_LIMIT       = Math.PI / 2 - 0.05;
+const JOYSTICK_R   = 48;
+const KNOB_R       = 20;
+const MOVE_SPEED   = 5;
+const LOOK_SENS    = 0.003;
+const PITCH_LIMIT  = Math.PI / 2 - 0.05;
 
-// ── Shared movement state (written by DOM touch handlers, read by useFrame) ─
-const moveState = { x: 0, y: 0 };   // normalized -1..1
-const lookDelta = { dx: 0, dy: 0 }; // accumulated since last frame
+// Shared touch state — written by DOM handlers, read by useFrame
+const move  = { x: 0, y: 0 };
+const look  = { dx: 0, dy: 0 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Inner component — always rendered, but only does work on touch devices
+// ── lookAt-based quaternion (same helper as FreeCameraControls) ──────────────
+const _lm = new THREE.Matrix4();
+function quatFromLookAt(position, target) {
+  _lm.lookAt(position, target, new THREE.Vector3(0, 1, 0));
+  const q = new THREE.Quaternion();
+  q.setFromRotationMatrix(_lm);
+  return q;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 function MobileControlsInner() {
   const { camera } = useThree();
+  const [mode, setMode] = useState('preset'); // 'preset' | 'confirming' | 'free'
 
-  // Refs for joystick DOM elements
   const joystickBaseRef = useRef(null);
   const joystickKnobRef = useRef(null);
 
-  // Lerp targets for camera preset navigation
-  const presetTarget = useRef(null);
-  const lerpingRef   = useRef(false);
-  const _targetQuat  = useRef(new THREE.Quaternion());
+  const presetTarget  = useRef(null);
+  const lerpingRef    = useRef(false);
+  const _targetQuat   = useRef(new THREE.Quaternion());
 
-  // ── Set camera rotation order once ─────────────────────────────────────
+  useEffect(() => { camera.rotation.order = 'YXZ'; }, [camera]);
+
+  // ── Touch handlers (only in free mode) ───────────────────────────────────
   useEffect(() => {
-    camera.rotation.order = 'YXZ';
-  }, [camera]);
+    if (!IS_TOUCH || mode !== 'free') return;
 
-  // ── Touch handlers ───────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!IS_TOUCH) return;
+    let joystickId = null, joystickOrigin = { x: 0, y: 0 };
+    let lookId = null, lastLook = { x: 0, y: 0 };
 
-    let joystickTouchId  = null;
-    let joystickOrigin   = { x: 0, y: 0 };
-    let lookTouchId      = null;
-    let lastLookPos      = { x: 0, y: 0 };
-
-    const onTouchStart = (e) => {
-      for (const touch of e.changedTouches) {
-        const isLeftHalf = touch.clientX < window.innerWidth / 2;
-
-        if (isLeftHalf && joystickTouchId === null) {
-          joystickTouchId = touch.identifier;
-          joystickOrigin  = { x: touch.clientX, y: touch.clientY };
-          // Snap joystick base to touch position
+    const onStart = (e) => {
+      for (const t of e.changedTouches) {
+        const left = t.clientX < window.innerWidth / 2;
+        if (left && joystickId === null) {
+          joystickId = t.identifier;
+          joystickOrigin = { x: t.clientX, y: t.clientY };
           if (joystickBaseRef.current) {
-            joystickBaseRef.current.style.left = `${touch.clientX - JOYSTICK_RADIUS}px`;
-            joystickBaseRef.current.style.top  = `${touch.clientY - JOYSTICK_RADIUS}px`;
-            joystickBaseRef.current.style.opacity = '0.7';
+            joystickBaseRef.current.style.left = `${t.clientX - JOYSTICK_R}px`;
+            joystickBaseRef.current.style.top  = `${t.clientY - JOYSTICK_R}px`;
+            joystickBaseRef.current.style.opacity = '0.75';
           }
-        } else if (!isLeftHalf && lookTouchId === null) {
-          lookTouchId  = touch.identifier;
-          lastLookPos  = { x: touch.clientX, y: touch.clientY };
+        } else if (!left && lookId === null) {
+          lookId = t.identifier;
+          lastLook = { x: t.clientX, y: t.clientY };
         }
       }
     };
 
-    const onTouchMove = (e) => {
-      for (const touch of e.changedTouches) {
-        if (touch.identifier === joystickTouchId) {
-          const dx = touch.clientX - joystickOrigin.x;
-          const dy = touch.clientY - joystickOrigin.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const clamped = Math.min(dist, JOYSTICK_RADIUS);
-          const angle   = Math.atan2(dy, dx);
-          const nx = (clamped / JOYSTICK_RADIUS) * Math.cos(angle);
-          const ny = (clamped / JOYSTICK_RADIUS) * Math.sin(angle);
-          moveState.x = nx;
-          moveState.y = ny;
-          // Move knob visually
+    const onMove = (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === joystickId) {
+          const dx = t.clientX - joystickOrigin.x;
+          const dy = t.clientY - joystickOrigin.y;
+          const dist = Math.min(Math.hypot(dx, dy), JOYSTICK_R);
+          const angle = Math.atan2(dy, dx);
+          move.x = (dist / JOYSTICK_R) * Math.cos(angle);
+          move.y = (dist / JOYSTICK_R) * Math.sin(angle);
           if (joystickKnobRef.current) {
             joystickKnobRef.current.style.transform =
-              `translate(${nx * JOYSTICK_RADIUS}px, ${ny * JOYSTICK_RADIUS}px)`;
+              `translate(${move.x * JOYSTICK_R}px,${move.y * JOYSTICK_R}px)`;
           }
-        } else if (touch.identifier === lookTouchId) {
-          lookDelta.dx += touch.clientX - lastLookPos.x;
-          lookDelta.dy += touch.clientY - lastLookPos.y;
-          lastLookPos = { x: touch.clientX, y: touch.clientY };
+        } else if (t.identifier === lookId) {
+          look.dx += t.clientX - lastLook.x;
+          look.dy += t.clientY - lastLook.y;
+          lastLook = { x: t.clientX, y: t.clientY };
         }
       }
     };
 
-    const onTouchEnd = (e) => {
-      for (const touch of e.changedTouches) {
-        if (touch.identifier === joystickTouchId) {
-          joystickTouchId = null;
-          moveState.x = 0;
-          moveState.y = 0;
-          if (joystickKnobRef.current) {
-            joystickKnobRef.current.style.transform = 'translate(0px, 0px)';
-          }
-          if (joystickBaseRef.current) {
+    const onEnd = (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === joystickId) {
+          joystickId = null;
+          move.x = 0; move.y = 0;
+          if (joystickKnobRef.current)
+            joystickKnobRef.current.style.transform = 'translate(0px,0px)';
+          if (joystickBaseRef.current)
             joystickBaseRef.current.style.opacity = '0.35';
-          }
-        } else if (touch.identifier === lookTouchId) {
-          lookTouchId = null;
+        } else if (t.identifier === lookId) {
+          lookId = null;
         }
       }
     };
 
-    window.addEventListener('touchstart',  onTouchStart, { passive: true });
-    window.addEventListener('touchmove',   onTouchMove,  { passive: true });
-    window.addEventListener('touchend',    onTouchEnd,   { passive: true });
-    window.addEventListener('touchcancel', onTouchEnd,   { passive: true });
-
+    window.addEventListener('touchstart',  onStart, { passive: true });
+    window.addEventListener('touchmove',   onMove,  { passive: true });
+    window.addEventListener('touchend',    onEnd,   { passive: true });
+    window.addEventListener('touchcancel', onEnd,   { passive: true });
     return () => {
-      window.removeEventListener('touchstart',  onTouchStart);
-      window.removeEventListener('touchmove',   onTouchMove);
-      window.removeEventListener('touchend',    onTouchEnd);
-      window.removeEventListener('touchcancel', onTouchEnd);
+      window.removeEventListener('touchstart',  onStart);
+      window.removeEventListener('touchmove',   onMove);
+      window.removeEventListener('touchend',    onEnd);
+      window.removeEventListener('touchcancel', onEnd);
+      move.x = 0; move.y = 0; look.dx = 0; look.dy = 0;
     };
-  }, []);
+  }, [mode]);
 
   // ── Per-frame camera update ───────────────────────────────────────────────
   useFrame((_, delta) => {
     if (!IS_TOUCH) return;
 
-    // ── Preset lerp ──
+    // Preset lerp
     if (lerpingRef.current && presetTarget.current) {
-      const t = Math.min(delta * 6, 1);
+      const t = Math.min(delta * 5, 1);
       camera.position.lerp(presetTarget.current.position, t);
       camera.quaternion.slerp(_targetQuat.current, t);
-      if (camera.position.distanceTo(presetTarget.current.position) < 0.01) {
+      if (camera.position.distanceTo(presetTarget.current.position) < 0.005) {
         camera.position.copy(presetTarget.current.position);
         camera.quaternion.copy(_targetQuat.current);
         lerpingRef.current = false;
@@ -151,128 +139,157 @@ function MobileControlsInner() {
       return;
     }
 
-    // ── Look (right-half drag) ──
-    if (lookDelta.dx !== 0 || lookDelta.dy !== 0) {
-      camera.rotation.y -= lookDelta.dx * LOOK_SENSITIVITY;
-      camera.rotation.x -= lookDelta.dy * LOOK_SENSITIVITY;
+    if (mode !== 'free') return;
+
+    // Look
+    if (look.dx !== 0 || look.dy !== 0) {
+      camera.rotation.y -= look.dx * LOOK_SENS;
+      camera.rotation.x -= look.dy * LOOK_SENS;
       camera.rotation.x  = THREE.MathUtils.clamp(camera.rotation.x, -PITCH_LIMIT, PITCH_LIMIT);
-      lookDelta.dx = 0;
-      lookDelta.dy = 0;
+      look.dx = 0; look.dy = 0;
     }
 
-    // ── Move (joystick) ──
-    if (moveState.x !== 0 || moveState.y !== 0) {
-      const speed = MOVE_SPEED * delta;
-      // y on joystick = forward/back (-y = up on screen = forward)
-      const fwd   = camera.getWorldDirection(new THREE.Vector3());
-      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
-      camera.position.addScaledVector(fwd,  -moveState.y * speed);
-      camera.position.addScaledVector(right,  moveState.x * speed);
+    // Move
+    if (move.x !== 0 || move.y !== 0) {
+      const sp  = MOVE_SPEED * delta;
+      const fwd = camera.getWorldDirection(new THREE.Vector3());
+      const rgt = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+      camera.position.addScaledVector(fwd, -move.y * sp);
+      camera.position.addScaledVector(rgt,  move.x * sp);
     }
   });
 
-  // ── Don't render UI on desktop ────────────────────────────────────────────
   if (!IS_TOUCH) return null;
 
-  // ── Preset button handler ─────────────────────────────────────────────────
-  const goToPreset = (index) => {
-    const p = CAMERA_PRESETS[index];
+  const goToPreset = (idx) => {
+    const p = CAMERA_PRESETS[idx];
     if (!p) return;
-    presetTarget.current = p;
-    _targetQuat.current.setFromEuler(p.rotation);
-    lerpingRef.current = true;
+    presetTarget.current = { position: p.position.clone() };
+    _targetQuat.current  = quatFromLookAt(p.position, p.lookAt);
+    lerpingRef.current   = true;
+    if (mode === 'free') setMode('preset');
   };
 
-  // ── DOM overlay (portal into body) ──────────────────────────────────────
-  const ui = (
-    <div style={{
-      position: 'fixed', inset: 0,
-      pointerEvents: 'none',
-      zIndex: 9998,
-      userSelect: 'none',
-    }}>
-      {/* ── Joystick (bottom-left) ── */}
-      <div
-        ref={joystickBaseRef}
-        style={{
-          position: 'absolute',
-          bottom: 40, left: 40,
-          width:  JOYSTICK_RADIUS * 2,
-          height: JOYSTICK_RADIUS * 2,
-          borderRadius: '50%',
+  const enterFree = () => setMode('free');
+  const exitFree  = () => { setMode('preset'); move.x = 0; move.y = 0; };
+
+  // ── DOM overlay ───────────────────────────────────────────────────────────
+
+  // Confirmation screen
+  if (mode === 'confirming') {
+    return createPortal(
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+        backdropFilter: 'blur(4px)', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', zIndex: 10001,
+        fontFamily: 'system-ui, sans-serif',
+      }}>
+        <div style={{
+          background: '#0f172a', border: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: 12, padding: '24px', maxWidth: 320, width: '88vw', color: '#fff',
+        }}>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>🔓 Free Camera?</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16, lineHeight: 1.6 }}>
+            Left half of screen → joystick to move<br />
+            Right half → drag to look around<br />
+            Tap "Exit" to return to normal navigation.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setMode('preset')} style={mBtn('#1e293b', '#94a3b8')}>Cancel</button>
+            <button onClick={enterFree}               style={mBtn('#3b82f6', '#fff')}>Enter</button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
+  // Free camera overlay
+  if (mode === 'free') {
+    return createPortal(
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9998 }}>
+        {/* Joystick */}
+        <div ref={joystickBaseRef} style={{
+          position: 'absolute', bottom: 60, left: 40,
+          width: JOYSTICK_R * 2, height: JOYSTICK_R * 2,
+          borderRadius: '50%', opacity: 0.35, pointerEvents: 'none',
           background: 'rgba(255,255,255,0.12)',
           border: '2px solid rgba(255,255,255,0.35)',
-          opacity: 0.35,
-          pointerEvents: 'none',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'opacity 0.2s',
-        }}
-      >
-        <div
-          ref={joystickKnobRef}
+        }}>
+          <div ref={joystickKnobRef} style={{
+            width: KNOB_R * 2, height: KNOB_R * 2, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.55)', pointerEvents: 'none',
+          }} />
+        </div>
+
+        {/* Look hint */}
+        <div style={{
+          position: 'absolute', bottom: 60, right: 40,
+          width: 88, height: 88, borderRadius: '50%',
+          border: '2px dashed rgba(255,255,255,0.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          opacity: 0.4, pointerEvents: 'none',
+        }}>
+          <span style={{ color: '#fff', fontSize: 10, textAlign: 'center', lineHeight: 1.4 }}>drag<br/>to look</span>
+        </div>
+
+        {/* Exit button */}
+        <button
+          onTouchStart={(e) => { e.stopPropagation(); exitFree(); }}
           style={{
-            width:  KNOB_RADIUS * 2,
-            height: KNOB_RADIUS * 2,
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.5)',
-            transition: 'transform 0.05s',
-            pointerEvents: 'none',
+            position: 'absolute', top: 16, right: 16,
+            pointerEvents: 'all',
+            background: 'rgba(239,68,68,0.2)', color: '#fca5a5',
+            border: '1px solid rgba(239,68,68,0.4)',
+            borderRadius: 8, padding: '8px 14px', fontSize: 12,
+            fontFamily: 'system-ui, sans-serif',
           }}
-        />
-      </div>
+        >
+          ✕ Exit Free Camera
+        </button>
+      </div>,
+      document.body
+    );
+  }
 
-      {/* ── Look hint (bottom-right) ── */}
-      <div style={{
-        position: 'absolute',
-        bottom: 40, right: 40,
-        width: 88, height: 88,
-        borderRadius: '50%',
-        border: '2px dashed rgba(255,255,255,0.2)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        pointerEvents: 'none',
-        opacity: 0.4,
-      }}>
-        <span style={{ color: '#fff', fontSize: 11, textAlign: 'center', lineHeight: 1.3 }}>
-          drag<br/>to look
-        </span>
-      </div>
-
-      {/* ── Camera preset buttons (top bar) ── */}
-      <div style={{
-        position: 'absolute',
-        top: 16, left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex', gap: 8,
-        pointerEvents: 'all',
-      }}>
-        {CAMERA_PRESETS.map((p, i) => (
-          <button
-            key={i}
-            onTouchStart={(e) => { e.stopPropagation(); goToPreset(i); }}
-            style={{
-              background: 'rgba(0,0,0,0.55)',
-              color: '#fff',
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: 6,
-              padding: '6px 12px',
-              fontSize: 12,
-              cursor: 'pointer',
-              backdropFilter: 'blur(4px)',
-            }}
-          >
-            {p.name}
-          </button>
-        ))}
-      </div>
-    </div>
+  // Preset mode — navigation buttons
+  return createPortal(
+    <div style={{
+      position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+      display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center',
+      zIndex: 9999, maxWidth: '95vw',
+    }}>
+      {CAMERA_PRESETS.map((p, i) => (
+        <button
+          key={p.name}
+          onTouchStart={(e) => { e.preventDefault(); goToPreset(i); }}
+          style={mBtn('#0f172acc', '#e2e8f0', '1px solid rgba(255,255,255,0.15)')}
+        >
+          {p.name}
+        </button>
+      ))}
+      <button
+        onTouchStart={(e) => { e.preventDefault(); setMode('confirming'); }}
+        style={mBtn('rgba(59,130,246,0.15)', '#93c5fd', '1px solid rgba(59,130,246,0.3)')}
+      >
+        🔓 Free Camera
+      </button>
+    </div>,
+    document.body
   );
-
-  return createPortal(ui, document.body);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Public export — wraps inner component, no-ops entirely on desktop
-// ─────────────────────────────────────────────────────────────────────────────
+function mBtn(bg, color, border = 'none') {
+  return {
+    background: bg, color, border,
+    borderRadius: 8, padding: '8px 16px', fontSize: 12,
+    fontFamily: 'system-ui, sans-serif',
+    cursor: 'pointer', backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+  };
+}
+
 export default function MobileControls() {
   return <MobileControlsInner />;
 }
