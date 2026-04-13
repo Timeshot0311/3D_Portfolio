@@ -1,52 +1,67 @@
 import React, { useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF, RenderTexture } from "@react-three/drei";
 import * as THREE from "three";
-
-// Import our programmed screen apps
 import FakeOSDesktop from "../components/FakeOSDesktop";
 import EmulatorV86 from "../components/EmulatorV86";
 
-
-// Map Blender object names → what content they should show
+// Map node names (must match Blender names exactly) → screen content type
+// Verified node names from timeshot-room2.glb:
+//   "large monitor screen"  → large display (emulator / future project showcase)
+//   "small monitor screen"  → small display (FakeOS portfolio)
 const SCREEN_MAP = {
-  "large monitor screen": { type: "route" },   // show Emulator + FakeOS page
-  "small monitor screen": { type: "fakeOS" },  // inline FakeOS windowed UI
+  "large monitor screen": "route",
+  "small monitor screen": "fakeOS",
 };
 
-function MaterialForPlan({ plan }) {
+// Renders a screen mesh with its original geometry but a live RenderTexture material.
+// The original mesh is hidden in the parent clone; this one replaces it visually.
+function ScreenMesh({ mesh, type }) {
+  const { position, quaternion, scale } = useMemo(() => {
+    mesh.updateWorldMatrix(true, false);
+    const pos  = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+    const scl  = new THREE.Vector3();
+    mesh.matrixWorld.decompose(pos, quat, scl);
+    return { position: pos, quaternion: quat, scale: scl };
+  }, [mesh]);
+
   return (
-    <meshBasicMaterial toneMapped={false}>
-      {/* renderTexture turns React into a texture */}
-      {/* @ts-ignore */}
-      <renderTexture attach="map">
-        {plan.type === "fakeOS" && <FakeOSDesktop />}
-        {plan.type === "route" && (
-          <div style={{ width: "100%", height: "100%", background: "black" }}>
-            <EmulatorV86 />
-          </div>
-        )}
-      </renderTexture>
-    </meshBasicMaterial>
+    <mesh geometry={mesh.geometry} position={position} quaternion={quaternion} scale={scale}>
+      <meshBasicMaterial toneMapped={false}>
+        <RenderTexture attach="map" width={1024} height={768}>
+          {type === "fakeOS" && <FakeOSDesktop />}
+          {type === "route" && <EmulatorV86 />}
+        </RenderTexture>
+      </meshBasicMaterial>
+    </mesh>
   );
 }
 
 export default function RoomScene() {
-  const { scene, nodes } = useGLTF("/models/timeshot-room2.glb");
-
-  // Clone scene so we can override materials
+  const { scene } = useGLTF("/models/timeshot-room2.glb");
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
-  useMemo(() => {
-    Object.entries(SCREEN_MAP).forEach(([name, plan]) => {
+  // Find screen meshes, hide originals so ScreenMesh can take over
+  const screens = useMemo(() => {
+    const result = [];
+    Object.entries(SCREEN_MAP).forEach(([name, type]) => {
       const mesh = cloned.getObjectByName(name);
-      if (mesh && mesh.isMesh) {
-        mesh.material = new THREE.MeshBasicMaterial({ color: "black" });
-        mesh.material = <MaterialForPlan plan={plan} />;
+      if (mesh?.isMesh) {
+        mesh.visible = false; // hidden — ScreenMesh renders it instead
+        result.push({ mesh, type });
       }
     });
+    return result;
   }, [cloned]);
 
-  return <primitive object={cloned} />;
+  return (
+    <>
+      <primitive object={cloned} />
+      {screens.map(({ mesh, type }) => (
+        <ScreenMesh key={mesh.uuid} mesh={mesh} type={type} />
+      ))}
+    </>
+  );
 }
 
 useGLTF.preload("/models/timeshot-room2.glb");
