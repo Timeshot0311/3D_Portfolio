@@ -74,6 +74,22 @@ export default function VtuberView() {
           gltf.animations.forEach((clip) => mixer.clipAction(clip).play());
           mixerRef.current = mixer;
         }
+
+        // ── Procedural rest pose (fix T-pose when no animation file present) ──
+        // VRM normalized bones default to T-pose (arms horizontal at 90°).
+        // We rotate the upper arms down ~70° so they hang naturally.
+        // These are set here as the initial state; useFrame fine-tunes them
+        // each frame for breathing, so spring bones drape correctly.
+        const h = vrm.humanoid;
+        const applyRestPose = () => {
+          h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2);
+          h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2);
+          h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0,  0.2);
+          h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0, -0.2);
+          h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0,  0.1);
+          h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0, -0.1);
+        };
+        applyRestPose();
       },
       undefined,
       (err) => console.error('VTuber load failed:', err)
@@ -86,7 +102,7 @@ export default function VtuberView() {
   }, [scene]);
 
   // ── Per-frame update ──────────────────────────────────────────────────────
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const group = groupRef.current;
     const vrm   = vrmRef.current;
     if (!group) return;
@@ -185,10 +201,26 @@ export default function VtuberView() {
       }
     }
 
-    // ── 6. UPDATE VRM (CRITICAL — spring bones, expressions, lookAt) ──────
+    // ── 6. PROCEDURAL IDLE POSE (arms + breathing) ───────────────────────
+    // Applied every frame before vrm.update() so spring bones react to it.
+    if (vrm?.humanoid) {
+      const t  = state.clock.elapsedTime;
+      const breathe = Math.sin(t * 0.9) * 0.025; // slow breath cycle
+
+      const h = vrm.humanoid;
+      h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2 + breathe * 0.3);
+      h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2 - breathe * 0.3);
+      h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0,  0.2);
+      h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0, -0.2);
+      // Chest rises/falls with breath
+      h.getNormalizedBoneNode('chest')?.rotation.set(breathe, 0, 0);
+      h.getNormalizedBoneNode('spine')?.rotation.set(breathe * 0.5, 0, 0);
+    }
+
+    // ── 7. UPDATE VRM (CRITICAL — spring bones, expressions, lookAt) ──────
     if (vrm) vrm.update(delta);
 
-    // ── 7. UPDATE ANIMATION MIXER ─────────────────────────────────────────
+    // ── 8. UPDATE ANIMATION MIXER ─────────────────────────────────────────
     if (mixerRef.current) mixerRef.current.update(delta);
   });
 

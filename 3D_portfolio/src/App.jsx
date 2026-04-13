@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import BackgroundMusic from './components/BackgroundMusic';
 import Loader from './components/Loader';
 import FreeCameraControls from './components/FreeCameraControls';
+import MobileControls from './components/MobileControls';
 
 
 useGLTF.preload('/models/VTuber2.vrm');
@@ -56,6 +57,7 @@ export default function App() {
         )}
 
         {sceneVisible && <FreeCameraControls />}
+        {sceneVisible && <MobileControls />}
       </Canvas>
     </>
   );
