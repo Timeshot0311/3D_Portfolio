@@ -1,32 +1,30 @@
-"use client";
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// YOUR PROJECTS — edit this array to add/update your portfolio items.
-// images: array of URL strings (absolute or relative to /public)
-// Leave images: [] for a styled placeholder card.
+// YOUR PROJECTS — edit this array.
+// images: array of /public paths, e.g. ["/screenshots/proj.png"]
+// Leave images:[] for a placeholder card.
 // ─────────────────────────────────────────────────────────────────────────────
 const PROJECTS = [
   {
     id: "portfolio-3d",
     title: "3D Portfolio",
-    description:
-      "An immersive, room-scale 3D portfolio built with React Three Fiber. Features a VTuber desktop companion, interactive monitor screens rendered via WebGL render textures, first-person camera controls, and mobile touch support.",
-    stack: ["React", "Three.js", "React Three Fiber", "VRM", "Vite", "Tailwind"],
-    images: [], // e.g. ["/screenshots/portfolio-1.png", "/screenshots/portfolio-2.png"]
-    github: "#",
+    description: "An immersive room-scale 3D portfolio built with React Three Fiber. Features a VTuber desktop companion pinned to the camera, interactive monitor screens, first-person free-camera, and mobile touch controls.",
+    stack: ["React", "Three.js", "R3F", "VRM", "Vite", "Tailwind"],
+    images: [],
+    github: "https://github.com/Timeshot0311/3D_Portfolio",
     live: "#",
-    accent: "#1a4a7a",
+    color: "#7c3aed",
   },
   {
     id: "project-2",
     title: "Project Two",
-    description: "Replace this with your actual project description. Explain what it does, what problem it solves, and any interesting technical challenges you overcame.",
+    description: "Replace with your real project description. Explain what it does, what problem it solves, and any interesting technical challenges.",
     stack: ["TypeScript", "Node.js", "PostgreSQL"],
     images: [],
     github: "#",
     live: "#",
-    accent: "#1a5a3a",
+    color: "#0891b2",
   },
   {
     id: "project-3",
@@ -36,145 +34,149 @@ const PROJECTS = [
     images: [],
     github: "#",
     live: "#",
-    accent: "#4a1a5a",
+    color: "#059669",
   },
   {
     id: "project-4",
     title: "Project Four",
-    description: "Yet another project. You can add as many entries as you like to this PROJECTS array.",
+    description: "Yet another project. Add as many entries as you like to the PROJECTS array at the top of FakeOSDesktop.jsx.",
     stack: ["Next.js", "Prisma", "Tailwind"],
     images: [],
     github: "#",
     live: "#",
-    accent: "#5a3a1a",
+    color: "#d97706",
   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Image Carousel
-// ─────────────────────────────────────────────────────────────────────────────
-function Carousel({ images, accent }) {
-  const [idx, setIdx] = useState(0);
-  const hasImages = images?.length > 0;
+// ── Shared style tokens ────────────────────────────────────────────────────
+const C = {
+  bg:       "#0d0d14",
+  surface:  "#13131f",
+  border:   "#2a2a40",
+  accent:   "#7c3aed",
+  accentLo: "rgba(124,58,237,0.15)",
+  accentHi: "rgba(124,58,237,0.4)",
+  text:     "#e2e0ff",
+  muted:    "#6b6b8a",
+  red:      "#ef4444",
+  yellow:   "#f59e0b",
+  green:    "#22c55e",
+};
+const FONT = '"Segoe UI", system-ui, sans-serif';
+const MONO = '"Cascadia Code", "Fira Code", monospace';
 
-  if (!hasImages) {
+const s = {
+  fill:   { width: "100%", height: "100%" },
+  col:    { display: "flex", flexDirection: "column" },
+  row:    { display: "flex", flexDirection: "row", alignItems: "center" },
+  titlebar: {
+    display: "flex", alignItems: "center", gap: 6,
+    padding: "5px 10px", background: "#0a0a12",
+    borderBottom: `1px solid ${C.border}`, flexShrink: 0,
+  },
+  dot: (color) => ({
+    width: 9, height: 9, borderRadius: "50%", background: color,
+  }),
+};
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+function Clock() {
+  const [t, setT] = useState(() => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  useEffect(() => {
+    const id = setInterval(() => setT(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })), 10000);
+    return () => clearInterval(id);
+  }, []);
+  return <span style={{ color: C.muted, fontSize: 10, fontFamily: MONO }}>{t}</span>;
+}
+
+// ── Image carousel ─────────────────────────────────────────────────────────
+function Carousel({ images, color }) {
+  const [idx, setIdx] = useState(0);
+  if (!images?.length) {
     return (
-      <div
-        className="w-full h-full flex items-center justify-center rounded-lg"
-        style={{ background: accent, minHeight: 160 }}
-      >
-        <div className="text-center text-white/40 text-xs">
-          <div className="text-2xl mb-1">🖼️</div>
-          <div>Add image URLs to PROJECTS</div>
-        </div>
-      </div>
+      <div style={{
+        height: 110, borderRadius: 6, background: `${color}22`,
+        border: `1px solid ${color}44`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: `${color}88`, fontSize: 22, flexShrink: 0,
+      }}>🗂</div>
     );
   }
-
   return (
-    <div className="relative w-full rounded-lg overflow-hidden" style={{ minHeight: 160 }}>
-      <img
-        src={images[idx]}
-        alt={`screenshot ${idx + 1}`}
-        className="w-full h-full object-cover"
-        style={{ minHeight: 160 }}
-      />
+    <div style={{ position: "relative", height: 110, borderRadius: 6, overflow: "hidden", flexShrink: 0 }}>
+      <img src={images[idx]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       {images.length > 1 && (
         <>
-          <button
-            onClick={() => setIdx((idx - 1 + images.length) % images.length)}
-            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-black/80"
-          >
-            ‹
-          </button>
-          <button
-            onClick={() => setIdx((idx + 1) % images.length)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-black/80"
-          >
-            ›
-          </button>
-          <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
-            {images.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setIdx(i)}
-                className={`w-1.5 h-1.5 rounded-full transition-colors ${i === idx ? "bg-white" : "bg-white/40"}`}
-              />
-            ))}
-          </div>
+          <button onClick={() => setIdx((idx - 1 + images.length) % images.length)}
+            style={{ position: "absolute", left: 4, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: 4, padding: "2px 6px", cursor: "pointer", fontSize: 12 }}>‹</button>
+          <button onClick={() => setIdx((idx + 1) % images.length)}
+            style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: 4, padding: "2px 6px", cursor: "pointer", fontSize: 12 }}>›</button>
         </>
       )}
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Project detail window
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Project detail window ──────────────────────────────────────────────────
 function ProjectWindow({ project, onBack, onClose }) {
   return (
-    <div className="absolute inset-2 bg-slate-900 rounded-lg flex flex-col overflow-hidden border border-slate-700 shadow-2xl">
-      {/* Title bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onBack}
-            className="text-slate-400 hover:text-white text-sm px-2 py-0.5 rounded hover:bg-slate-700 transition-colors"
-          >
-            ← Back
-          </button>
-          <span className="text-white text-xs font-medium truncate">{project.title}</span>
-        </div>
-        <button
-          onClick={onClose}
-          className="w-4 h-4 rounded-full bg-red-500 hover:bg-red-400 text-white flex items-center justify-center text-xs leading-none"
-        >
-          ×
-        </button>
+    <div style={{ ...s.fill, ...s.col, background: C.surface, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}`, boxShadow: `0 8px 32px rgba(0,0,0,0.6)` }}>
+      {/* title bar */}
+      <div style={s.titlebar}>
+        <div style={s.dot(C.red)} onClick={onClose} title="Close" />
+        <div style={s.dot(C.yellow)} onClick={onBack} title="Back" />
+        <div style={s.dot(C.green)} />
+        <span style={{ color: C.muted, fontSize: 10, fontFamily: MONO, marginLeft: 4, flex: 1 }}>
+          ~/projects/{project.id}
+        </span>
+        <button onClick={onBack} style={{
+          background: "none", border: `1px solid ${C.border}`, color: C.muted,
+          borderRadius: 4, padding: "1px 8px", fontSize: 10, cursor: "pointer", fontFamily: MONO,
+        }}>← back</button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
-        {/* Screenshot carousel */}
-        <Carousel images={project.images} accent={project.accent} />
+      {/* content */}
+      <div style={{ flex: 1, overflowY: "auto", padding: 12, ...s.col, gap: 10 }}>
+        <Carousel images={project.images} color={project.color} />
 
-        {/* Info */}
         <div>
-          <h2 className="text-white font-semibold text-sm mb-1">{project.title}</h2>
-          <p className="text-slate-400 text-xs leading-relaxed">{project.description}</p>
+          <div style={{ color: C.text, fontWeight: 700, fontSize: 14, fontFamily: FONT, marginBottom: 4 }}>
+            {project.title}
+          </div>
+          <div style={{ color: C.muted, fontSize: 11, lineHeight: 1.6, fontFamily: FONT }}>
+            {project.description}
+          </div>
         </div>
 
-        {/* Stack */}
-        <div className="flex flex-wrap gap-1">
+        {/* stack tags */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
           {project.stack.map((tag) => (
-            <span
-              key={tag}
-              className="px-2 py-0.5 rounded text-xs font-mono text-cyan-300 border border-cyan-800 bg-cyan-950/50"
-            >
-              {tag}
-            </span>
+            <span key={tag} style={{
+              padding: "2px 8px", borderRadius: 4,
+              fontSize: 10, fontFamily: MONO,
+              background: C.accentLo, color: "#a78bfa",
+              border: `1px solid ${C.accentHi}`,
+            }}>{tag}</span>
           ))}
         </div>
 
-        {/* Links */}
-        <div className="flex gap-2 mt-auto pt-1">
-          <a
-            href={project.github}
-            target="_blank"
-            rel="noreferrer"
-            className="flex-1 text-center text-xs py-1.5 rounded border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors"
-          >
-            GitHub ↗
-          </a>
+        {/* links */}
+        <div style={{ ...s.row, gap: 8, marginTop: "auto" }}>
+          {project.github !== "#" && (
+            <a href={project.github} target="_blank" rel="noreferrer" style={{
+              flex: 1, textAlign: "center", padding: "6px 0",
+              borderRadius: 6, border: `1px solid ${C.border}`,
+              color: C.muted, fontSize: 11, textDecoration: "none", fontFamily: FONT,
+              background: C.bg,
+            }}>GitHub ↗</a>
+          )}
           {project.live !== "#" && (
-            <a
-              href={project.live}
-              target="_blank"
-              rel="noreferrer"
-              className="flex-1 text-center text-xs py-1.5 rounded border border-cyan-700 text-cyan-300 hover:bg-cyan-900/40 transition-colors"
-            >
-              Live Demo ↗
-            </a>
+            <a href={project.live} target="_blank" rel="noreferrer" style={{
+              flex: 1, textAlign: "center", padding: "6px 0",
+              borderRadius: 6, border: `1px solid ${C.accentHi}`,
+              color: "#a78bfa", fontSize: 11, textDecoration: "none", fontFamily: FONT,
+              background: C.accentLo,
+            }}>Live Demo ↗</a>
           )}
         </div>
       </div>
@@ -182,46 +184,50 @@ function ProjectWindow({ project, onBack, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Folder window — grid of project cards
-// ─────────────────────────────────────────────────────────────────────────────
-function FolderWindow({ onSelectProject, onClose }) {
+// ── Projects folder window ─────────────────────────────────────────────────
+function FolderWindow({ onSelect, onClose }) {
   return (
-    <div className="absolute inset-2 bg-slate-900 rounded-lg flex flex-col overflow-hidden border border-slate-700 shadow-2xl">
-      {/* Title bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
-        <span className="text-white text-xs font-medium flex items-center gap-1.5">
-          <span>📁</span> My Standout Projects
+    <div style={{ ...s.fill, ...s.col, background: C.surface, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}`, boxShadow: `0 8px 32px rgba(0,0,0,0.6)` }}>
+      <div style={s.titlebar}>
+        <div style={s.dot(C.red)} onClick={onClose} />
+        <div style={s.dot(C.yellow)} onClick={onClose} />
+        <div style={s.dot(C.green)} />
+        <span style={{ color: C.muted, fontSize: 10, fontFamily: MONO, marginLeft: 4 }}>
+          ~/projects
         </span>
-        <button
-          onClick={onClose}
-          className="w-4 h-4 rounded-full bg-red-500 hover:bg-red-400 text-white flex items-center justify-center text-xs leading-none"
-        >
-          ×
-        </button>
+        <span style={{ marginLeft: "auto", color: C.muted, fontSize: 10 }}>{PROJECTS.length} items</span>
       </div>
 
-      {/* Project grid */}
-      <div className="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2 content-start">
+      <div style={{
+        flex: 1, overflowY: "auto", padding: 10,
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, alignContent: "start",
+      }}>
         {PROJECTS.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => onSelectProject(p)}
-            className="text-left rounded-lg p-2 border border-slate-700 hover:border-slate-500 transition-all hover:scale-[1.02] active:scale-[0.98]"
-            style={{ background: `${p.accent}33` }}
+          <button key={p.id} onClick={() => onSelect(p)} style={{
+            textAlign: "left", padding: 10, borderRadius: 8,
+            background: `${p.color}11`,
+            border: `1px solid ${p.color}33`,
+            cursor: "pointer", transition: "all 0.15s",
+          }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = `${p.color}22`; e.currentTarget.style.borderColor = `${p.color}66`; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = `${p.color}11`; e.currentTarget.style.borderColor = `${p.color}33`; }}
           >
-            {/* Mini preview */}
-            <div
-              className="w-full h-16 rounded mb-2 flex items-center justify-center text-lg"
-              style={{ background: p.accent }}
-            >
+            {/* mini preview */}
+            <div style={{
+              width: "100%", height: 52, borderRadius: 4, marginBottom: 6,
+              background: p.images[0] ? "none" : `${p.color}22`,
+              border: `1px solid ${p.color}33`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 18, overflow: "hidden",
+            }}>
               {p.images[0]
-                ? <img src={p.images[0]} alt="" className="w-full h-full object-cover rounded" />
-                : "🗂️"
-              }
+                ? <img src={p.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : "🗂️"}
             </div>
-            <div className="text-white text-xs font-medium truncate">{p.title}</div>
-            <div className="text-slate-500 text-xs mt-0.5 truncate">
+            <div style={{ color: C.text, fontSize: 11, fontWeight: 600, fontFamily: FONT, marginBottom: 2 }}>
+              {p.title}
+            </div>
+            <div style={{ color: C.muted, fontSize: 9, fontFamily: MONO }}>
               {p.stack.slice(0, 3).join(" · ")}
             </div>
           </button>
@@ -231,56 +237,82 @@ function FolderWindow({ onSelectProject, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Desktop — icons on wallpaper
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Desktop ────────────────────────────────────────────────────────────────
 function Desktop({ onOpenFolder }) {
   return (
-    <div className="relative w-full h-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex flex-col">
-      {/* Desktop icons */}
-      <div className="flex-1 p-4 flex flex-col gap-3 items-start justify-start">
-        {/* Projects folder */}
-        <button
-          onClick={onOpenFolder}
-          className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-white/10 transition-colors group w-20"
-        >
-          <div className="text-4xl group-hover:scale-110 transition-transform">📁</div>
-          <span className="text-white text-xs text-center leading-tight">
-            My Standout<br />Projects
-          </span>
-        </button>
+    <div style={{
+      ...s.fill, ...s.col,
+      background: `radial-gradient(ellipse at 30% 40%, #1a0a2e 0%, #0d0d1a 60%, #050508 100%)`,
+      position: "relative", overflow: "hidden",
+    }}>
+      {/* subtle grid overlay */}
+      <div style={{
+        position: "absolute", inset: 0, pointerEvents: "none",
+        backgroundImage: `linear-gradient(${C.border} 1px, transparent 1px), linear-gradient(90deg, ${C.border} 1px, transparent 1px)`,
+        backgroundSize: "32px 32px", opacity: 0.3,
+      }} />
+
+      {/* icons */}
+      <div style={{ flex: 1, padding: 14, display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start", position: "relative" }}>
+        <DesktopIcon icon="🗂️" label="My Projects" onClick={onOpenFolder} />
+        <DesktopIcon icon="📄" label="Resume.pdf" onClick={() => {}} />
+        <DesktopIcon icon="📬" label="Contact" onClick={() => {}} />
       </div>
 
-      {/* Taskbar */}
-      <div className="h-7 bg-slate-800/90 border-t border-slate-700 flex items-center px-3 gap-2 shrink-0">
-        <div className="text-white/40 text-xs">🖥️ Portfolio OS</div>
-        <div className="ml-auto text-white/30 text-xs">
-          {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+      {/* taskbar */}
+      <div style={{
+        height: 28, ...s.row, justifyContent: "space-between",
+        padding: "0 12px", flexShrink: 0,
+        background: "rgba(10,10,20,0.9)",
+        backdropFilter: "blur(12px)",
+        borderTop: `1px solid ${C.border}`,
+        position: "relative",
+      }}>
+        <div style={{ ...s.row, gap: 6 }}>
+          <div style={{
+            width: 14, height: 14, borderRadius: 3,
+            background: `linear-gradient(135deg, ${C.accent}, #3b0a8a)`,
+          }} />
+          <span style={{ color: C.muted, fontSize: 10, fontFamily: FONT }}>TimeshotOS</span>
         </div>
+        <Clock />
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Root export — state machine: desktop → folder → project
-// ─────────────────────────────────────────────────────────────────────────────
+function DesktopIcon({ icon, label, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+      padding: "6px 8px", borderRadius: 6, background: "none",
+      border: "1px solid transparent", cursor: "pointer", width: 64,
+    }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = C.accentLo; e.currentTarget.style.borderColor = C.accentHi; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = "transparent"; }}
+    >
+      <span style={{ fontSize: 26 }}>{icon}</span>
+      <span style={{ color: C.text, fontSize: 9, fontFamily: FONT, textAlign: "center", lineHeight: 1.3, textShadow: "0 1px 3px #000" }}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
+// ── Root ───────────────────────────────────────────────────────────────────
 export default function FakeOSDesktop() {
-  const [view, setView] = useState("desktop"); // 'desktop' | 'folder' | project object
-  const isProject = view !== "desktop" && view !== "folder";
+  const [view, setView] = useState("desktop"); // 'desktop' | 'folder' | project
 
   return (
-    <div className="relative w-full h-full overflow-hidden text-white select-none">
-      {view === "desktop" && (
-        <Desktop onOpenFolder={() => setView("folder")} />
-      )}
-      {view === "folder" && (
+    <div style={{ ...s.fill, fontFamily: FONT, color: C.text, background: C.bg }}>
+      {view === "desktop" && <Desktop onOpenFolder={() => setView("folder")} />}
+      {view === "folder"  && (
         <FolderWindow
-          onSelectProject={(p) => setView(p)}
+          onSelect={(p) => setView(p)}
           onClose={() => setView("desktop")}
         />
       )}
-      {isProject && (
+      {view !== "desktop" && view !== "folder" && (
         <ProjectWindow
           project={view}
           onBack={() => setView("folder")}

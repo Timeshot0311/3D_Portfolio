@@ -43,22 +43,34 @@ export function quatFromLookAt(position, target) {
   return q;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Props:
-//   mode        — 'preset' | 'confirming' | 'free'  (owned by App)
-//   setMode     — setter from App
-//   plcLockRef  — ref whose .current will be set to () => plcRef.current.lock()
-//                 so CameraHUD can trigger pointer lock without being in Canvas
-// ─────────────────────────────────────────────────────────────────────────────
 export default function FreeCameraControls({ mode, setMode, plcLockRef }) {
   const { camera } = useThree();
   const plcRef = useRef();
 
   const presetTarget = useRef(null);
   const lerpingRef   = useRef(false);
+  const keys         = useRef({});
+  const direction    = useRef(new THREE.Vector3());
 
-  const keys      = useRef({});
-  const direction = useRef(new THREE.Vector3());
+  // Keep refs in sync so useFrame always reads the latest values
+  // without relying on stale closures.
+  const modeRef    = useRef(mode);
+  const setModeRef = useRef(setMode);
+  useEffect(() => { modeRef.current    = mode;    }, [mode]);
+  useEffect(() => { setModeRef.current = setMode; }, [setMode]);
+
+  // goToPreset stored in a ref so the document click handler (created once
+  // at mount) always calls the latest version.
+  const goToPresetRef = useRef(null);
+  goToPresetRef.current = (idx) => {
+    const p = CAMERA_PRESETS[idx];
+    if (!p) return;
+    presetTarget.current = {
+      position:   p.position.clone(),
+      quaternion: quatFromLookAt(p.position, p.lookAt),
+    };
+    lerpingRef.current = true;
+  };
 
   // Expose camera globally for coordinate discovery
   useEffect(() => { window.__camera = camera; }, [camera]);
@@ -68,7 +80,7 @@ export default function FreeCameraControls({ mode, setMode, plcLockRef }) {
     if (plcLockRef) plcLockRef.current = () => plcRef.current?.lock?.();
   }, [plcLockRef]);
 
-  // Spawn position + rotation order
+  // Spawn
   useEffect(() => {
     camera.rotation.order = 'YXZ';
     camera.position.copy(SPAWN_POSITION);
@@ -80,16 +92,16 @@ export default function FreeCameraControls({ mode, setMode, plcLockRef }) {
     if (mode !== 'free') plcRef.current?.unlock?.();
   }, [mode]);
 
-  // Preset button delegation — CameraHUD buttons carry data-preset attribute
+  // Preset button delegation — buttons in CameraHUD carry data-preset attr
   useEffect(() => {
     const handler = (e) => {
       const btn = e.target.closest('[data-preset]');
       if (!btn) return;
-      goToPreset(parseInt(btn.dataset.preset, 10));
+      goToPresetRef.current?.(parseInt(btn.dataset.preset, 10));
     };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keyboard
   useEffect(() => {
@@ -103,18 +115,10 @@ export default function FreeCameraControls({ mode, setMode, plcLockRef }) {
     };
   }, []);
 
-  const goToPreset = (idx) => {
-    const p = CAMERA_PRESETS[idx];
-    if (!p) return;
-    presetTarget.current = {
-      position:   p.position.clone(),
-      quaternion: quatFromLookAt(p.position, p.lookAt),
-    };
-    lerpingRef.current = true;
-  };
-
   useFrame((_, delta) => {
-    if (mode === 'free') {
+    const curMode = modeRef.current;
+
+    if (curMode === 'free') {
       const speed = keys.current['ShiftLeft'] ? 15 : 5;
       direction.current.set(0, 0, 0);
       if (keys.current['KeyW']) direction.current.z += 1;
@@ -134,8 +138,9 @@ export default function FreeCameraControls({ mode, setMode, plcLockRef }) {
       return;
     }
 
+    // Preset lerp — runs in both 'preset' and 'confirming' modes
     if (lerpingRef.current && presetTarget.current) {
-      const t = Math.min(delta * 5, 1);
+      const t = Math.min(delta * 4, 0.95);
       camera.position.lerp(presetTarget.current.position, t);
       camera.quaternion.slerp(presetTarget.current.quaternion, t);
       if (camera.position.distanceTo(presetTarget.current.position) < 0.005) {
@@ -147,6 +152,6 @@ export default function FreeCameraControls({ mode, setMode, plcLockRef }) {
   });
 
   return mode === 'free' ? (
-    <PointerLockControls ref={plcRef} onUnlock={() => setMode('preset')} />
+    <PointerLockControls ref={plcRef} onUnlock={() => setModeRef.current('preset')} />
   ) : null;
 }

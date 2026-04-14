@@ -5,41 +5,36 @@ import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CAMERA-SPACE VTuber
-// Attached directly to the camera so she's always pinned to the bottom-left
-// corner of the viewport, regardless of where the player looks or moves.
+// Camera-space VTuber — permanently pinned to the bottom-left viewport corner.
 //
-// Position is in camera local space:
-//   -X = left,  -Y = bottom,  -Z = in front of camera (toward viewer)
+// The group is added to the CAMERA (camera.add), NOT returned as a <primitive>.
+// Returning <primitive object={group}> would cause R3F's scene reconciler to
+// fight with camera.add and pull the group back into world space.
 //
-// She faces +Z in local space = faces toward the viewer (no rotateVRM0 flip).
+// Position is in camera-local coords: -X left, -Y down, -Z forward.
+// VRM0 canonical facing is +Z (toward viewer). We do NOT call rotateVRM0 so
+// she faces the player naturally in camera space.
 // ─────────────────────────────────────────────────────────────────────────────
 const CAM_POS   = new THREE.Vector3(-0.5, -0.42, -1.1);
 const CAM_SCALE = 0.21;
-
-// Gentle float offsets (camera-local)
 const FLOAT_AMP = { x: 0.008, y: 0.012 };
 
 export default function VTuberView() {
-  const groupRef  = useRef(new THREE.Group());
-  const vrmRef    = useRef(null);
-  const mixerRef  = useRef(null);
+  const groupRef = useRef(new THREE.Group());
+  const vrmRef   = useRef(null);
+  const mixerRef = useRef(null);
 
-  const mouseRef  = useRef(new THREE.Vector2(0, 0));
-
+  const mouseRef    = useRef(new THREE.Vector2(0, 0));
   const floatOffset = useRef(new THREE.Vector2(0, 0));
   const floatTarget = useRef(new THREE.Vector2(0, 0));
   const floatTimer  = useRef(2.0);
-
   const blinkTimer  = useRef(THREE.MathUtils.randFloat(2, 5));
   const blinkPhase  = useRef(0);
   const blinkVal    = useRef(0);
-
-  const _mouseWS = useRef(new THREE.Vector3());
+  const _mouseWS    = useRef(new THREE.Vector3());
 
   const { camera } = useThree();
 
-  // ── Mouse tracking ─────────────────────────────────────────────────────────
   useEffect(() => {
     const onMove = (e) => {
       mouseRef.current.set(
@@ -51,7 +46,6 @@ export default function VTuberView() {
     return () => window.removeEventListener('mousemove', onMove);
   }, []);
 
-  // ── VRM load — attach to camera ────────────────────────────────────────────
   useEffect(() => {
     const group = groupRef.current;
     group.scale.setScalar(CAM_SCALE);
@@ -68,18 +62,12 @@ export default function VTuberView() {
         // combineSkeletons replaces deprecated removeUnnecessaryJoints
         VRMUtils.combineSkeletons?.(vrm.scene);
 
-        // VRM0 faces +Z by default — that's toward the viewer in camera space.
-        // Do NOT call rotateVRM0 here; it would flip her away from the viewer.
-        if (vrm.meta?.metaVersion !== '0') {
-          // VRM1: no flip needed either — already faces -Z world, but in cam
-          // space we want +Z. Set rotation explicitly.
-          vrm.scene.rotation.y = 0;
-        }
+        // VRM0 faces +Z = toward viewer in camera space. Don't rotate.
+        vrm.scene.rotation.set(0, 0, 0);
 
         vrmRef.current = vrm;
-
         group.add(vrm.scene);
-        camera.add(group); // ← pinned to camera, not world scene
+        camera.add(group); // ← imperative attach to camera, never <primitive>
 
         if (gltf.animations?.length > 0) {
           const mixer = new THREE.AnimationMixer(vrm.scene);
@@ -87,7 +75,6 @@ export default function VTuberView() {
           mixerRef.current = mixer;
         }
 
-        // Rest pose
         const h = vrm.humanoid;
         h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2);
         h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2);
@@ -100,17 +87,14 @@ export default function VTuberView() {
       (err) => console.error('VTuber load failed:', err),
     );
 
-    return () => {
-      camera.remove(group);
-    };
+    return () => { camera.remove(group); };
   }, [camera]);
 
-  // ── Per-frame ──────────────────────────────────────────────────────────────
   useFrame((state, delta) => {
     const group = groupRef.current;
     const vrm   = vrmRef.current;
 
-    // ── 1. GENTLE FLOAT in camera space ──────────────────────────────────
+    // Gentle float
     floatTimer.current -= delta;
     if (floatTimer.current <= 0) {
       floatTarget.current.set(
@@ -123,15 +107,14 @@ export default function VTuberView() {
     group.position.x = CAM_POS.x + floatOffset.current.x;
     group.position.y = CAM_POS.y + floatOffset.current.y;
 
-    // ── 2. HEAD LOOK-AT MOUSE ─────────────────────────────────────────────
+    // Head look-at mouse
     if (vrm?.lookAt) {
-      // Unproject mouse NDC into world space and hand to VRM lookAt
       _mouseWS.current.set(mouseRef.current.x, mouseRef.current.y, 0.5);
       _mouseWS.current.unproject(camera);
       vrm.lookAt.lookAt(_mouseWS.current);
     }
 
-    // ── 3. BLINK ──────────────────────────────────────────────────────────
+    // Blink
     if (vrm?.expressionManager) {
       blinkTimer.current -= delta;
       const DUR = 0.08;
@@ -154,7 +137,7 @@ export default function VTuberView() {
       }
     }
 
-    // ── 4. PROCEDURAL IDLE POSE ───────────────────────────────────────────
+    // Idle breathing pose
     if (vrm?.humanoid) {
       const t       = state.clock.elapsedTime;
       const breathe = Math.sin(t * 0.9) * 0.025;
@@ -167,10 +150,11 @@ export default function VTuberView() {
       h.getNormalizedBoneNode('spine')?.rotation.set(breathe * 0.5, 0, 0);
     }
 
-    // ── 5. VRM + MIXER UPDATE ─────────────────────────────────────────────
     if (vrm) vrm.update(delta);
     if (mixerRef.current) mixerRef.current.update(delta);
   });
 
-  return <primitive object={groupRef.current} />;
+  // Return null — the group is managed imperatively via camera.add.
+  // Returning <primitive> here would remove the group from the camera.
+  return null;
 }
