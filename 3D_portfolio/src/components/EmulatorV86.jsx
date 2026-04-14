@@ -50,7 +50,7 @@ export default function EmulatorV86() {
           autostart: true,
           bios: { url: "/v86/bios/seabios.bin" },
           vga_bios: { url: "/v86/bios/vgabios.bin" },
-          cdrom: { url: "/v86/images/tinycore.iso" }, // swap to your choice
+          cdrom: { url: "/v86/images/TinyCore-current.iso" },
           // boot_order: 0x132, // optional
         });
 
