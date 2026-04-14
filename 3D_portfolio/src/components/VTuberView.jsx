@@ -5,57 +5,58 @@ import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESKTOP MATE CONFIG
-// The VTuber floats freely in world space near the desk/monitor area.
-// Adjust HOME to reposition her — use console.log(camera.position) in-game
-// to find a good anchor point.
+// CAMERA-SPACE VTuber
+// Attached directly to the camera so she's always pinned to the bottom-left
+// corner of the viewport, regardless of where the player looks or moves.
 //
-// Room world bounds (from GLB): X 1.67–3.76, Y 3.19–4.19, Z 2.68–4.89
-// Monitors are at world Z ≈ 2.82, so she floats just to the side of them.
+// Position is in camera local space:
+//   -X = left,  -Y = bottom,  -Z = in front of camera (toward viewer)
+//
+// She faces +Z in local space = faces toward the viewer (no rotateVRM0 flip).
 // ─────────────────────────────────────────────────────────────────────────────
-const VTUBER_HOME   = new THREE.Vector3(1.9, 3.85, 3.2); // left side of desk area
-const WANDER_RADIUS = { x: 0.18, y: 0.10, z: 0.08 };    // gentle drift extent
+const CAM_POS   = new THREE.Vector3(-0.5, -0.42, -1.1);
+const CAM_SCALE = 0.21;
 
-export default function VtuberView() {
-  const groupRef    = useRef(new THREE.Group());
-  const vrmRef      = useRef(null);
-  const mixerRef    = useRef(null);
+// Gentle float offsets (camera-local)
+const FLOAT_AMP = { x: 0.008, y: 0.012 };
 
-  // Mouse tracking (NDC -1..1)
-  const mouseRef    = useRef(new THREE.Vector2(0, 0));
+export default function VTuberView() {
+  const groupRef  = useRef(new THREE.Group());
+  const vrmRef    = useRef(null);
+  const mixerRef  = useRef(null);
 
-  // World-space idle wander
-  const wanderOffset = useRef(new THREE.Vector3());
-  const wanderTarget = useRef(new THREE.Vector3());
-  const wanderTimer  = useRef(2.0);
+  const mouseRef  = useRef(new THREE.Vector2(0, 0));
 
-  // Blinking state machine
-  const blinkTimer   = useRef(THREE.MathUtils.randFloat(2, 5));
-  const blinkPhase   = useRef(0);   // 0=open, 1=closing, 2=opening
-  const blinkVal     = useRef(0);
+  const floatOffset = useRef(new THREE.Vector2(0, 0));
+  const floatTarget = useRef(new THREE.Vector2(0, 0));
+  const floatTimer  = useRef(2.0);
 
-  // Reusable vectors — no per-frame allocation
-  const _dir      = useRef(new THREE.Vector3());
-  const _mouseWS  = useRef(new THREE.Vector3());
-  const _worldPos = useRef(new THREE.Vector3());
+  const blinkTimer  = useRef(THREE.MathUtils.randFloat(2, 5));
+  const blinkPhase  = useRef(0);
+  const blinkVal    = useRef(0);
 
-  const { camera, scene } = useThree();
+  const _mouseWS = useRef(new THREE.Vector3());
 
-  // ── Mouse listener ─────────────────────────────────────────────────────────
+  const { camera } = useThree();
+
+  // ── Mouse tracking ─────────────────────────────────────────────────────────
   useEffect(() => {
     const onMove = (e) => {
       mouseRef.current.set(
         (e.clientX / window.innerWidth)  *  2 - 1,
-       -(e.clientY / window.innerHeight) *  2 + 1
+       -(e.clientY / window.innerHeight) *  2 + 1,
       );
     };
     window.addEventListener('mousemove', onMove);
     return () => window.removeEventListener('mousemove', onMove);
   }, []);
 
-  // ── VRM load ───────────────────────────────────────────────────────────────
+  // ── VRM load — attach to camera ────────────────────────────────────────────
   useEffect(() => {
     const group = groupRef.current;
+    group.scale.setScalar(CAM_SCALE);
+    group.position.copy(CAM_POS);
+
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
@@ -64,28 +65,29 @@ export default function VtuberView() {
       (gltf) => {
         const vrm = gltf.userData.vrm;
 
-        VRMUtils.removeUnnecessaryJoints?.(vrm.scene);
-        if (VRMUtils.rotateVRM0) {
-          VRMUtils.rotateVRM0(vrm);
-        } else {
-          vrm.scene.rotation.y = Math.PI;
+        // combineSkeletons replaces deprecated removeUnnecessaryJoints
+        VRMUtils.combineSkeletons?.(vrm.scene);
+
+        // VRM0 faces +Z by default — that's toward the viewer in camera space.
+        // Do NOT call rotateVRM0 here; it would flip her away from the viewer.
+        if (vrm.meta?.metaVersion !== '0') {
+          // VRM1: no flip needed either — already faces -Z world, but in cam
+          // space we want +Z. Set rotation explicitly.
+          vrm.scene.rotation.y = 0;
         }
 
         vrmRef.current = vrm;
 
-        // Start at home position
-        group.position.copy(VTUBER_HOME);
         group.add(vrm.scene);
-        scene.add(group);
+        camera.add(group); // ← pinned to camera, not world scene
 
-        // Animations from file (if any)
         if (gltf.animations?.length > 0) {
           const mixer = new THREE.AnimationMixer(vrm.scene);
           gltf.animations.forEach((clip) => mixer.clipAction(clip).play());
           mixerRef.current = mixer;
         }
 
-        // Initial rest pose (arms down from T-pose)
+        // Rest pose
         const h = vrm.humanoid;
         h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2);
         h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2);
@@ -95,74 +97,55 @@ export default function VtuberView() {
         h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0, -0.1);
       },
       undefined,
-      (err) => console.error('VTuber load failed:', err)
+      (err) => console.error('VTuber load failed:', err),
     );
 
     return () => {
-      if (group.parent) scene.remove(group);
+      camera.remove(group);
     };
-  }, [scene]);
+  }, [camera]);
 
-  // ── Per-frame update ───────────────────────────────────────────────────────
+  // ── Per-frame ──────────────────────────────────────────────────────────────
   useFrame((state, delta) => {
     const group = groupRef.current;
     const vrm   = vrmRef.current;
-    if (!group) return;
 
-    // ── 1. WORLD-SPACE WANDER (desktop mate drift) ────────────────────────
-    // Picks a new small random offset from HOME every 1.5–3 seconds,
-    // then smoothly lerps toward it. She stays near her desk-side spot.
-    wanderTimer.current -= delta;
-    if (wanderTimer.current <= 0) {
-      wanderTarget.current.set(
-        THREE.MathUtils.randFloatSpread(WANDER_RADIUS.x * 2),
-        THREE.MathUtils.randFloatSpread(WANDER_RADIUS.y * 2),
-        THREE.MathUtils.randFloatSpread(WANDER_RADIUS.z * 2)
+    // ── 1. GENTLE FLOAT in camera space ──────────────────────────────────
+    floatTimer.current -= delta;
+    if (floatTimer.current <= 0) {
+      floatTarget.current.set(
+        THREE.MathUtils.randFloatSpread(FLOAT_AMP.x * 2),
+        THREE.MathUtils.randFloatSpread(FLOAT_AMP.y * 2),
       );
-      wanderTimer.current = THREE.MathUtils.randFloat(1.5, 3.0);
+      floatTimer.current = THREE.MathUtils.randFloat(1.5, 3.0);
     }
-    wanderOffset.current.lerp(wanderTarget.current, delta * 1.0);
+    floatOffset.current.lerp(floatTarget.current, delta * 1.2);
+    group.position.x = CAM_POS.x + floatOffset.current.x;
+    group.position.y = CAM_POS.y + floatOffset.current.y;
 
-    _worldPos.current.copy(VTUBER_HOME).add(wanderOffset.current);
-    group.position.lerp(_worldPos.current, delta * 3);
-
-    // ── 2. FACE CAMERA (Y rotation, no lookAt flip) ───────────────────────
-    _dir.current.subVectors(camera.position, group.position);
-    _dir.current.y = 0;
-    if (_dir.current.lengthSq() > 0.0001) {
-      const targetAngle = Math.atan2(_dir.current.x, _dir.current.z);
-      const curr = group.rotation.y;
-      const diff = ((targetAngle - curr + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-      group.rotation.y += diff * Math.min(delta * 4, 1);
-    }
-
-    // ── 3. HEAD LOOK-AT MOUSE (via VRM lookAt) ────────────────────────────
+    // ── 2. HEAD LOOK-AT MOUSE ─────────────────────────────────────────────
     if (vrm?.lookAt) {
+      // Unproject mouse NDC into world space and hand to VRM lookAt
       _mouseWS.current.set(mouseRef.current.x, mouseRef.current.y, 0.5);
       _mouseWS.current.unproject(camera);
-      _mouseWS.current.sub(camera.position).normalize().multiplyScalar(3).add(camera.position);
       vrm.lookAt.lookAt(_mouseWS.current);
     }
 
-    // ── 4. BLINK ──────────────────────────────────────────────────────────
+    // ── 3. BLINK ──────────────────────────────────────────────────────────
     if (vrm?.expressionManager) {
       blinkTimer.current -= delta;
-      const BLINK_DUR = 0.08;
-
-      if (blinkPhase.current === 0 && blinkTimer.current <= 0) {
-        blinkPhase.current = 1;
-      }
+      const DUR = 0.08;
+      if (blinkPhase.current === 0 && blinkTimer.current <= 0) blinkPhase.current = 1;
       if (blinkPhase.current === 1) {
-        blinkVal.current = Math.min(1, blinkVal.current + delta / BLINK_DUR);
+        blinkVal.current = Math.min(1, blinkVal.current + delta / DUR);
         if (blinkVal.current >= 1) blinkPhase.current = 2;
       } else if (blinkPhase.current === 2) {
-        blinkVal.current = Math.max(0, blinkVal.current - delta / BLINK_DUR);
+        blinkVal.current = Math.max(0, blinkVal.current - delta / DUR);
         if (blinkVal.current <= 0) {
           blinkPhase.current = 0;
           blinkTimer.current = THREE.MathUtils.randFloat(2, 5);
         }
       }
-
       if (vrm.expressionManager.getValue?.('blink') !== undefined) {
         vrm.expressionManager.setValue('blink', blinkVal.current);
       } else {
@@ -171,11 +154,11 @@ export default function VtuberView() {
       }
     }
 
-    // ── 5. PROCEDURAL IDLE POSE (breathing + arms) ───────────────────────
+    // ── 4. PROCEDURAL IDLE POSE ───────────────────────────────────────────
     if (vrm?.humanoid) {
-      const t = state.clock.elapsedTime;
+      const t       = state.clock.elapsedTime;
       const breathe = Math.sin(t * 0.9) * 0.025;
-      const h = vrm.humanoid;
+      const h       = vrm.humanoid;
       h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2 + breathe * 0.3);
       h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2 - breathe * 0.3);
       h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0,  0.2);
@@ -184,10 +167,8 @@ export default function VtuberView() {
       h.getNormalizedBoneNode('spine')?.rotation.set(breathe * 0.5, 0, 0);
     }
 
-    // ── 6. UPDATE VRM (spring bones, expressions, lookAt) ─────────────────
+    // ── 5. VRM + MIXER UPDATE ─────────────────────────────────────────────
     if (vrm) vrm.update(delta);
-
-    // ── 7. UPDATE ANIMATION MIXER ─────────────────────────────────────────
     if (mixerRef.current) mixerRef.current.update(delta);
   });
 
