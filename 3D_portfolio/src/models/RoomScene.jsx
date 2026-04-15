@@ -14,9 +14,10 @@ import GitHubStats from "../components/GitHubStats";
 // GLB nodes may be Object3D groups, not Mesh — so we search by name only,
 // never filtering by isMesh. Box3.setFromObject works on any Object3D.
 // ─────────────────────────────────────────────────────────────────────────────
+// Node names as they appear in the GLB (underscores, not spaces)
 const SCREEN_MAP = {
-  "large monitor screen": "fakeOS",
-  "small monitor screen": "github",
+  "large_monitor_screen": "fakeOS",
+  "small_monitor_screen": "github",
 };
 
 // Find any Object3D by name — exact first, then case-insensitive.
@@ -84,6 +85,11 @@ export default function RoomScene() {
     if (result.length > 0) {
       computed.current = true;
       setScreenData(result);
+      // Expose screen centers for camera-preset coordinate discovery
+      window.__screenCenters = Object.fromEntries(
+        result.map(({ type, center }) => [type, center]),
+      );
+      console.info('[RoomScene] screen centers:', window.__screenCenters);
     }
   });
 
