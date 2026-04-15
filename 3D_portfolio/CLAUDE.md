@@ -57,19 +57,44 @@ public/
     images/ TinyCore-current.iso   ← exact filename (not tinycore.iso)
 ```
 
+## VTuber Camera Companion — Positioning
+VTuberView is **scene-based** (`<primitive object={group} />`), NOT `camera.add`.
+Every frame in `useFrame`:
+```js
+_worldPos.set(CAM_OFFSET.x + floatX, CAM_OFFSET.y + floatY, CAM_OFFSET.z)
+         .applyMatrix4(camera.matrixWorld);
+group.position.copy(_worldPos);
+group.quaternion.copy(camera.quaternion);
+```
+VRM0 faces +Z locally. When group quaternion = camera quaternion, local +Z = camera's +Z in world = BEHIND the camera = toward the viewer. ✓
+**Do NOT call `rotateVRM0`** for the camera-companion — it would make her face away.
+
+## VTuber AI Chat
+- `api/chat.js` — Vercel serverless function, proxies to Claude Haiku. Set `ANTHROPIC_API_KEY` env var on Vercel.
+- `src/components/VTuberChat.jsx` — DOM chat bubble (outside Canvas). Uses Web Speech API for TTS.
+- `isSpeaking` state in `App.jsx` flows: `VTuberChat onSpeakingChange` → `App.isSpeaking` → `VTuberView isSpeaking` prop → phoneme lip sync in `useFrame`.
+
+## RoomScene — Screen Node Finding
+GLB nodes for monitor screens are `Object3D` groups, NOT `Mesh` instances.
+Use `findScreenNode` (name-only search, no `isMesh` check).
+`Box3.setFromObject(node)` traverses the subtree and works on any Object3D.
+
 ## File Map
 ```
 src/
-  App.jsx                          entry, camera state lives here
+  App.jsx                          entry, camera + isSpeaking state
   models/RoomScene.jsx             room GLB + Html screen overlays
   components/
     FreeCameraControls.jsx         Three.js WASD + PointerLock (Canvas only)
     CameraHUD.jsx                  desktop HUD DOM (outside Canvas)
     MobileControls.jsx             Three.js touch camera (Canvas only)
     MobileHUD.jsx                  mobile overlay DOM (outside Canvas)
-    VTuberView.jsx                 VRM model + idle animation
+    VTuberView.jsx                 VRM model, camera-relative, lip sync
+    VTuberChat.jsx                 AI chat bubble DOM (outside Canvas)
     FakeOSDesktop.jsx              fake OS UI rendered on monitor via Html
-    EmulatorV86.jsx                v86 emulator on large monitor
+    GitHubStats.jsx                GitHub stats on small monitor via Html
     BackgroundMusic.jsx
     Loader.jsx
+api/
+  chat.js                          Vercel serverless → Claude Haiku proxy
 ```
