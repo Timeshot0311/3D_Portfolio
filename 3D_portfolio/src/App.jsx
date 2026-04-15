@@ -11,6 +11,7 @@ import MobileControls from './components/MobileControls';
 import CameraHUD from './components/CameraHUD';
 import MobileHUD from './components/MobileHUD';
 import VTuberChat from './components/VTuberChat';
+import CameraTracker from './components/CameraTracker';
 
 useGLTF.preload('/models/VTuber2.vrm');
 
@@ -94,6 +95,8 @@ export default function App() {
       {sceneVisible && (
         <VTuberChat onSpeakingChange={setIsSpeaking} />
       )}
+      {/* DEV: camera position tracker — remove before shipping */}
+      {sceneVisible && <CameraTracker />}
     </>
   );
 }
