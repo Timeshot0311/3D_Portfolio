@@ -19,9 +19,13 @@ const SCREEN_MAP = {
 // Tune these until the Html overlay fills the physical monitor frame.
 // Use Free Camera + tracker to get close, then adjust until it looks right.
 // ─────────────────────────────────────────────────────────────────────────────
+// Effective width the Html overlay will appear in the scene.
+// drei's Html transform normalises internally by ~canvas_height/2, so this
+// value ends up being ~7–8× smaller on screen than raw Three.js world units.
+// Tune until content fills the physical monitor frame when at the preset view.
 const SCREEN_W = {
-  fakeOS: 1.4,    // large monitor width  — increase if content is too narrow
-  github: 0.95,   // small monitor width
+  fakeOS: 10.0,   // large monitor — increase if content still too small
+  github:  7.0,   // small monitor
 };
 const SCREEN_ASPECT = {
   fakeOS: 16 / 9,
