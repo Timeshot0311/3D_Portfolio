@@ -71,8 +71,10 @@ export default function VTuberView({ isSpeaking = false }) {
         const vrm = gltf.userData.vrm;
         VRMUtils.combineSkeletons?.(vrm.scene);
 
-        // VRM0 faces +Z — toward viewer in camera-relative mode. No rotation needed.
-        vrm.scene.rotation.set(0, 0, 0);
+        // rotateVRM0 rotates the model 180° on Y so it faces +Z (toward viewer).
+        // VRM0 models naturally face -Z; without this the character faces away.
+        // In camera-relative mode (+Z = toward viewer) this is exactly what we need.
+        VRMUtils.rotateVRM0?.(vrm);
 
         vrmRef.current = vrm;
         group.add(vrm.scene);

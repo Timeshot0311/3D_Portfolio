@@ -20,7 +20,7 @@ const C = {
 
 // Fallback greeting lines shown when the API is unavailable
 const FALLBACK_LINES = [
-  "Ahh, my API key isn't set yet — but hi!! (◕‿◕)✿",
+  "Oops, connection hiccup! (＞﹏＜) Try again~",
   "Welcome to Timeshot's portfolio! Ask me anything~",
   "I'm Yuki! Timeshot built me with React & Three.js (⌒‿⌒)",
 ];

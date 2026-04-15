@@ -66,8 +66,9 @@ _worldPos.set(CAM_OFFSET.x + floatX, CAM_OFFSET.y + floatY, CAM_OFFSET.z)
 group.position.copy(_worldPos);
 group.quaternion.copy(camera.quaternion);
 ```
-VRM0 faces +Z locally. When group quaternion = camera quaternion, local +Z = camera's +Z in world = BEHIND the camera = toward the viewer. ✓
-**Do NOT call `rotateVRM0`** for the camera-companion — it would make her face away.
+VRM0 models naturally face -Z. `rotateVRM0` flips them to face +Z.
+When group quaternion = camera quaternion, local +Z = camera's +Z in world = toward viewer. ✓
+**Always call `VRMUtils.rotateVRM0(vrm)`** before adding vrm.scene to the group.
 
 ## VTuber AI Chat
 - `api/chat.js` — Vercel serverless function, proxies to Claude Haiku. Set `ANTHROPIC_API_KEY` env var on Vercel.
