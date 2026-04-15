@@ -1,40 +1,51 @@
+// src/components/VTuberView.jsx
+// Scene-based VTuber companion pinned to the bottom-left viewport corner.
+//
+// Strategy: the group lives in R3F's scene graph (<primitive> return).
+// Every frame we compute the world-space position of the camera-local offset
+// and copy the camera's quaternion so the group stays locked to the viewport.
+//
+// VRM0 faces +Z in its local space (no rotateVRM0). When the group quaternion
+// matches the camera's quaternion, local +Z = camera local +Z = the direction
+// BEHIND the camera in world space — which is exactly toward the viewer. ✓
 import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Camera-space VTuber — permanently pinned to the bottom-left viewport corner.
-//
-// The group is added to the CAMERA (camera.add), NOT returned as a <primitive>.
-// Returning <primitive object={group}> would cause R3F's scene reconciler to
-// fight with camera.add and pull the group back into world space.
-//
-// Position is in camera-local coords: -X left, -Y down, -Z forward.
-// VRM0 canonical facing is +Z (toward viewer). We do NOT call rotateVRM0 so
-// she faces the player naturally in camera space.
-// ─────────────────────────────────────────────────────────────────────────────
-const CAM_POS   = new THREE.Vector3(-0.5, -0.42, -1.1);
-const CAM_SCALE = 0.21;
-const FLOAT_AMP = { x: 0.008, y: 0.012 };
+// Camera-local offset: left (-X), down (-Y), forward (-Z)
+const CAM_OFFSET = new THREE.Vector3(-0.52, -0.44, -1.1);
+const CAM_SCALE  = 0.21;
+const FLOAT_AMP  = { x: 0.008, y: 0.012 };
 
-export default function VTuberView() {
+// Reusable objects — never reallocated inside useFrame
+const _worldPos  = new THREE.Vector3();
+const _mouseWS   = new THREE.Vector3();
+const PHONEMES   = ['aa', 'ih', 'ou', 'ee', 'oh'];
+
+export default function VTuberView({ isSpeaking = false }) {
   const groupRef = useRef(new THREE.Group());
   const vrmRef   = useRef(null);
   const mixerRef = useRef(null);
 
-  const mouseRef    = useRef(new THREE.Vector2(0, 0));
-  const floatOffset = useRef(new THREE.Vector2(0, 0));
-  const floatTarget = useRef(new THREE.Vector2(0, 0));
-  const floatTimer  = useRef(2.0);
-  const blinkTimer  = useRef(THREE.MathUtils.randFloat(2, 5));
-  const blinkPhase  = useRef(0);
-  const blinkVal    = useRef(0);
-  const _mouseWS    = useRef(new THREE.Vector3());
+  const mouseRef     = useRef(new THREE.Vector2(0, 0));
+  const floatOffset  = useRef(new THREE.Vector2(0, 0));
+  const floatTarget  = useRef(new THREE.Vector2(0, 0));
+  const floatTimer   = useRef(2.0);
+  const blinkTimer   = useRef(THREE.MathUtils.randFloat(2, 5));
+  const blinkPhase   = useRef(0);
+  const blinkVal     = useRef(0);
+  const phonemeIdx   = useRef(0);
+  const phonemeTimer = useRef(0);
+
+  // Keep isSpeaking in a ref so useFrame sees latest value without re-mount
+  const isSpeakingRef = useRef(isSpeaking);
+  useEffect(() => { isSpeakingRef.current = isSpeaking; }, [isSpeaking]);
 
   const { camera } = useThree();
 
+  // Mouse tracking
   useEffect(() => {
     const onMove = (e) => {
       mouseRef.current.set(
@@ -46,10 +57,10 @@ export default function VTuberView() {
     return () => window.removeEventListener('mousemove', onMove);
   }, []);
 
+  // Load VRM
   useEffect(() => {
     const group = groupRef.current;
     group.scale.setScalar(CAM_SCALE);
-    group.position.copy(CAM_POS);
 
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
@@ -58,16 +69,13 @@ export default function VTuberView() {
       '/models/VTuber2.vrm',
       (gltf) => {
         const vrm = gltf.userData.vrm;
-
-        // combineSkeletons replaces deprecated removeUnnecessaryJoints
         VRMUtils.combineSkeletons?.(vrm.scene);
 
-        // VRM0 faces +Z = toward viewer in camera space. Don't rotate.
+        // VRM0 faces +Z — toward viewer in camera-relative mode. No rotation needed.
         vrm.scene.rotation.set(0, 0, 0);
 
         vrmRef.current = vrm;
         group.add(vrm.scene);
-        camera.add(group); // ← imperative attach to camera, never <primitive>
 
         if (gltf.animations?.length > 0) {
           const mixer = new THREE.AnimationMixer(vrm.scene);
@@ -75,6 +83,7 @@ export default function VTuberView() {
           mixerRef.current = mixer;
         }
 
+        // Idle arm pose
         const h = vrm.humanoid;
         h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2);
         h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2);
@@ -86,15 +95,13 @@ export default function VTuberView() {
       undefined,
       (err) => console.error('VTuber load failed:', err),
     );
-
-    return () => { camera.remove(group); };
-  }, [camera]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFrame((state, delta) => {
     const group = groupRef.current;
     const vrm   = vrmRef.current;
 
-    // Gentle float
+    // ── 1. Gentle float ────────────────────────────────────────────────────
     floatTimer.current -= delta;
     if (floatTimer.current <= 0) {
       floatTarget.current.set(
@@ -104,17 +111,26 @@ export default function VTuberView() {
       floatTimer.current = THREE.MathUtils.randFloat(1.5, 3.0);
     }
     floatOffset.current.lerp(floatTarget.current, delta * 1.2);
-    group.position.x = CAM_POS.x + floatOffset.current.x;
-    group.position.y = CAM_POS.y + floatOffset.current.y;
 
-    // Head look-at mouse
+    // ── 2. Pin to camera-local offset ──────────────────────────────────────
+    _worldPos
+      .set(
+        CAM_OFFSET.x + floatOffset.current.x,
+        CAM_OFFSET.y + floatOffset.current.y,
+        CAM_OFFSET.z,
+      )
+      .applyMatrix4(camera.matrixWorld);
+
+    group.position.copy(_worldPos);
+    group.quaternion.copy(camera.quaternion);
+
+    // ── 3. Head look-at mouse ──────────────────────────────────────────────
     if (vrm?.lookAt) {
-      _mouseWS.current.set(mouseRef.current.x, mouseRef.current.y, 0.5);
-      _mouseWS.current.unproject(camera);
-      vrm.lookAt.lookAt(_mouseWS.current);
+      _mouseWS.set(mouseRef.current.x, mouseRef.current.y, 0.5).unproject(camera);
+      vrm.lookAt.lookAt(_mouseWS);
     }
 
-    // Blink
+    // ── 4. Blink ───────────────────────────────────────────────────────────
     if (vrm?.expressionManager) {
       blinkTimer.current -= delta;
       const DUR = 0.08;
@@ -129,15 +145,30 @@ export default function VTuberView() {
           blinkTimer.current = THREE.MathUtils.randFloat(2, 5);
         }
       }
+      const bv = blinkVal.current;
       if (vrm.expressionManager.getValue?.('blink') !== undefined) {
-        vrm.expressionManager.setValue('blink', blinkVal.current);
+        vrm.expressionManager.setValue('blink', bv);
       } else {
-        vrm.expressionManager.setValue?.('blinkLeft',  blinkVal.current);
-        vrm.expressionManager.setValue?.('blinkRight', blinkVal.current);
+        vrm.expressionManager.setValue?.('blinkLeft',  bv);
+        vrm.expressionManager.setValue?.('blinkRight', bv);
+      }
+
+      // ── 5. Lip sync while speaking ────────────────────────────────────────
+      if (isSpeakingRef.current) {
+        phonemeTimer.current -= delta;
+        if (phonemeTimer.current <= 0) {
+          PHONEMES.forEach((p) => vrm.expressionManager.setValue?.(p, 0));
+          phonemeIdx.current = (phonemeIdx.current + 1) % PHONEMES.length;
+          vrm.expressionManager.setValue?.(PHONEMES[phonemeIdx.current], 0.75);
+          phonemeTimer.current = THREE.MathUtils.randFloat(0.06, 0.14);
+        }
+      } else {
+        PHONEMES.forEach((p) => vrm.expressionManager.setValue?.(p, 0));
+        phonemeTimer.current = 0;
       }
     }
 
-    // Idle breathing pose
+    // ── 6. Idle breathing ──────────────────────────────────────────────────
     if (vrm?.humanoid) {
       const t       = state.clock.elapsedTime;
       const breathe = Math.sin(t * 0.9) * 0.025;
@@ -154,7 +185,6 @@ export default function VTuberView() {
     if (mixerRef.current) mixerRef.current.update(delta);
   });
 
-  // Return null — the group is managed imperatively via camera.add.
-  // Returning <primitive> here would remove the group from the camera.
-  return null;
+  // Scene-based — R3F manages this group in the scene graph.
+  return <primitive object={groupRef.current} />;
 }

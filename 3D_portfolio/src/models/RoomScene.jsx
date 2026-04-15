@@ -11,20 +11,23 @@ import GitHubStats from "../components/GitHubStats";
 //   small monitor → GitHub stats
 //
 // Names must match node names in timeshot-room2.glb (case-insensitive fallback).
+// GLB nodes may be Object3D groups, not Mesh — so we search by name only,
+// never filtering by isMesh. Box3.setFromObject works on any Object3D.
 // ─────────────────────────────────────────────────────────────────────────────
 const SCREEN_MAP = {
   "large monitor screen": "fakeOS",
   "small monitor screen": "github",
 };
 
-// Case-insensitive mesh search with exact-name priority
-function findMesh(root, name) {
+// Find any Object3D by name — exact first, then case-insensitive.
+// Does NOT check isMesh so it works on group nodes too.
+function findScreenNode(root, name) {
   const exact = root.getObjectByName(name);
-  if (exact?.isMesh) return exact;
+  if (exact) return exact;
   const lower = name.toLowerCase();
   let found = null;
   root.traverse((obj) => {
-    if (!found && obj.isMesh && obj.name.toLowerCase() === lower) found = obj;
+    if (!found && obj.name.toLowerCase() === lower) found = obj;
   });
   return found;
 }
@@ -43,31 +46,39 @@ export default function RoomScene() {
 
     const result = [];
     Object.entries(SCREEN_MAP).forEach(([name, type]) => {
-      const mesh = findMesh(cloned, name);
-      if (!mesh) {
-        console.warn(`RoomScene: mesh "${name}" not found in GLB`);
+      const node = findScreenNode(cloned, name);
+      if (!node) {
+        // Log all node names to help debug typos / renamed nodes
+        const allNames = [];
+        cloned.traverse((o) => { if (o.name) allNames.push(o.name); });
+        console.warn(`RoomScene: node "${name}" not found. Available names:`, allNames);
         return;
       }
 
-      mesh.visible = false;
-      mesh.updateWorldMatrix(true, false);
+      // Hide the geometry — Html overlay replaces it visually
+      node.visible = false;
+      node.updateWorldMatrix(true, true);
 
-      const bbox = new THREE.Box3().setFromObject(mesh);
-      if (bbox.isEmpty()) return;
+      // Works on any Object3D (group or mesh)
+      const bbox = new THREE.Box3().setFromObject(node);
+      if (bbox.isEmpty()) {
+        console.warn(`RoomScene: node "${name}" has an empty bounding box`);
+        return;
+      }
 
       const center = new THREE.Vector3();
       bbox.getCenter(center);
       const size = bbox.getSize(new THREE.Vector3());
 
       const quat = new THREE.Quaternion();
-      mesh.matrixWorld.decompose(new THREE.Vector3(), quat, new THREE.Vector3());
+      node.matrixWorld.decompose(new THREE.Vector3(), quat, new THREE.Vector3());
       const euler = new THREE.Euler().setFromQuaternion(quat, "YXZ");
 
       const cssW       = 512;
       const cssH       = Math.round((size.y / Math.max(size.x, 0.001)) * cssW);
       const pixelScale = size.x / cssW;
 
-      result.push({ id: mesh.uuid, type, center, euler, cssW, cssH, pixelScale });
+      result.push({ id: node.uuid, type, center, euler, cssW, cssH, pixelScale });
     });
 
     if (result.length > 0) {

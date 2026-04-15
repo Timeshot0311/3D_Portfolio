@@ -10,6 +10,7 @@ import FreeCameraControls from './components/FreeCameraControls';
 import MobileControls from './components/MobileControls';
 import CameraHUD from './components/CameraHUD';
 import MobileHUD from './components/MobileHUD';
+import VTuberChat from './components/VTuberChat';
 
 useGLTF.preload('/models/VTuber2.vrm');
 
@@ -22,6 +23,9 @@ export default function App() {
   // Camera mode owned here so HUDs (outside Canvas) and controls (inside Canvas) share it
   const [cameraMode, setCameraMode] = useState('preset');
   const plcLockRef = useRef(null); // set by FreeCameraControls, called by CameraHUD
+
+  // isSpeaking is set by VTuberChat TTS callbacks and forwarded to VTuberView for lip sync
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const handleEnter = () => {
     const loaderEl = document.getElementById('loading-overlay');
@@ -53,7 +57,7 @@ export default function App() {
         {sceneVisible && (
           <Suspense fallback={null}>
             <RoomScene />
-            <VTuberView />
+            <VTuberView isSpeaking={isSpeaking} />
           </Suspense>
         )}
 
@@ -85,6 +89,10 @@ export default function App() {
           mode={cameraMode}
           setMode={setCameraMode}
         />
+      )}
+      {/* VTuber AI chat — positioned bottom-left, near the VTuber companion */}
+      {sceneVisible && (
+        <VTuberChat onSpeakingChange={setIsSpeaking} />
       )}
     </>
   );
