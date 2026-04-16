@@ -5,46 +5,50 @@ import { useState, useEffect } from "react";
 // images: array of /public paths, e.g. ["/screenshots/proj.png"]
 // Leave images:[] for a placeholder card.
 // ─────────────────────────────────────────────────────────────────────────────
+// ── DROP YOUR SCREENSHOTS HERE ────────────────────────────────────────────────
+// Add image files to /public/screenshots/ then reference them below.
+// Example: images: ["/screenshots/campuslearn-1.png", "/screenshots/campuslearn-2.png"]
+// ─────────────────────────────────────────────────────────────────────────────
 const PROJECTS = [
   {
-    id: "portfolio-3d",
-    title: "3D Portfolio",
-    description: "An immersive room-scale 3D portfolio built with React Three Fiber. Features a VTuber desktop companion pinned to the camera, interactive monitor screens, first-person free-camera, and mobile touch controls.",
-    stack: ["React", "Three.js", "R3F", "VRM", "Vite", "Tailwind"],
-    images: [],
-    github: "https://github.com/Timeshot0311/3D_Portfolio",
-    live: "#",
-    color: "#7c3aed",
-  },
-  {
-    id: "project-2",
-    title: "Project Two",
-    description: "Replace with your real project description. Explain what it does, what problem it solves, and any interesting technical challenges.",
-    stack: ["TypeScript", "Node.js", "PostgreSQL"],
-    images: [],
-    github: "#",
+    id: "campuslearn",
+    title: "CampusLearn",
+    description: "Secure, role-based academic platform for students, tutors, lecturers, and admins. Features course management, assignment grading, and an AI tutor powered by Gemini — all on a fully serverless Google Cloud stack with real-time Firestore sync.",
+    stack: ["Next.js", "TypeScript", "Firebase", "Genkit", "Gemini", "Cypress", "Tailwind"],
+    images: [],  // add: ["/screenshots/campuslearn-1.png", "/screenshots/campuslearn-2.png"]
+    github: "https://github.com/Timeshot0311/CampusLearn",
     live: "#",
     color: "#0891b2",
   },
   {
-    id: "project-3",
-    title: "Project Three",
-    description: "Another standout project. Add your real description, stack, and links here.",
-    stack: ["Python", "FastAPI", "React"],
-    images: [],
-    github: "#",
+    id: "scholarai",
+    title: "ScholarAI",
+    description: "GenAI personal tutor using Socratic dialogue, multi-modal inputs (text, voice, documents), adaptive quiz generation, and personalized coaching based on performance history. Built with Gemini via Genkit for context-aware sessions.",
+    stack: ["Next.js 15", "TypeScript", "Genkit", "Gemini", "Zustand", "Firebase"],
+    images: [],  // add: ["/screenshots/scholarai-1.png", "/screenshots/scholarai-2.png"]
+    github: "https://github.com/Timeshot0311/ScholarAI",
     live: "#",
     color: "#059669",
   },
   {
-    id: "project-4",
-    title: "Project Four",
-    description: "Yet another project. Add as many entries as you like to the PROJECTS array at the top of FakeOSDesktop.jsx.",
-    stack: ["Next.js", "Prisma", "Tailwind"],
+    id: "invascan",
+    title: "Invascan",
+    description: "YOLO-based computer vision system (capstone) for detecting invasive plant species from images. Covers the full ML pipeline — dataset prep, model training, and evaluation using precision, recall, and mAP metrics.",
+    stack: ["Python", "Ultralytics YOLO", "Computer Vision", "Machine Learning"],
     images: [],
-    github: "#",
+    github: "https://github.com/Timeshot0311/Invascan",
     live: "#",
     color: "#d97706",
+  },
+  {
+    id: "portfolio-3d",
+    title: "3D Portfolio",
+    description: "Immersive room-scale 3D portfolio with a VTuber AI companion (ElevenLabs TTS + LLM), interactive monitor screens with a fake OS and GitHub stats, first-person free-camera, and mobile touch controls.",
+    stack: ["React", "Three.js", "R3F", "VRM", "Vite", "Tailwind", "Vercel"],
+    images: [],
+    github: "https://github.com/Timeshot0311/3D_Portfolio",
+    live: "#",
+    color: "#7c3aed",
   },
 ];
 

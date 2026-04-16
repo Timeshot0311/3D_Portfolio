@@ -25,25 +25,26 @@ const LANG_COLORS = {
 
 // ── EDIT YOUR FEATURED PROJECTS HERE ─────────────────────────────────────────
 // Fill in: name, description, tech stack, repo link, and a highlight colour.
+// ── UPDATE REPO URLs IF DIFFERENT ─────────────────────────────────────────────
 const FEATURED_PROJECTS = [
   {
     name: "PRJ",
-    desc: "Add a short description of what PRJ does and the problem it solves.",
-    tech: ["React", "Node.js"],         // list the tech stack tags you want shown
-    url:  `https://github.com/${USERNAME}/PRJ`,   // update repo name if different
+    desc: "← Fill this in: what does PRJ do? Update the URL below to the real repo name.",
+    tech: ["React", "Node.js"],
+    url:  `https://github.com/${USERNAME}/PRJ`,   // ← update repo name
     color: "#58a6ff",
   },
   {
     name: "CampusLearn",
-    desc: "Add a short description of CampusLearn and the problem it solves.",
-    tech: ["React", "Python"],
+    desc: "Role-based academic platform with AI tutoring powered by Gemini. Covers course management, grading, and real-time sync — built serverless on Google Cloud.",
+    tech: ["Next.js", "TypeScript", "Firebase", "Genkit", "Gemini", "Tailwind"],
     url:  `https://github.com/${USERNAME}/CampusLearn`,
     color: "#3fb950",
   },
   {
     name: "ScholarAI",
-    desc: "Add a short description of ScholarAI and the problem it solves.",
-    tech: ["TypeScript", "AI/ML"],
+    desc: "GenAI personal tutor using Socratic dialogue, voice/doc inputs, adaptive quizzes, and performance-based coaching via Gemini and Genkit.",
+    tech: ["Next.js 15", "TypeScript", "Genkit", "Gemini", "Firebase"],
     url:  `https://github.com/${USERNAME}/ScholarAI`,
     color: "#bc8cff",
   },
