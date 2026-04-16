@@ -31,6 +31,11 @@ export default function App() {
   const [vtuberReady,   setVtuberReady]   = useState(false);
   const [vrmPreloaded,  setVrmPreloaded]  = useState(false);
 
+  // Chat panel open/close — lifted so CameraHUD buttons can toggle it
+  const [chatOpen, setChatOpen] = useState(false);
+  // Ref exposed by VTuberChat so CameraHUD mic button calls toggleMic directly
+  const vtChatControlRef = useRef({ toggleMic: () => {}, isListening: false });
+
   // Preload VRM with VRMLoaderPlugin before the scene opens so "Enter"
   // only unlocks when the model is actually ready to display.
   useEffect(() => {
@@ -94,6 +99,10 @@ export default function App() {
           mode={cameraMode}
           setMode={setCameraMode}
           plcLockRef={plcLockRef}
+          chatOpen={chatOpen}
+          onChatToggle={() => setChatOpen((o) => !o)}
+          onMicToggle={() => vtChatControlRef.current?.toggleMic()}
+          micActive={vtChatControlRef.current?.isListening ?? false}
         />
       )}
       {sceneVisible && (
@@ -102,9 +111,15 @@ export default function App() {
           setMode={setCameraMode}
         />
       )}
-      {/* VTuber AI chat — positioned bottom-left, near the VTuber companion */}
+      {/* VTuber AI chat — bubble top-left (follows VTuber), panel bottom-center */}
       {sceneVisible && (
-        <VTuberChat onSpeakingChange={setIsSpeaking} vtuberReady={vtuberReady} />
+        <VTuberChat
+          onSpeakingChange={setIsSpeaking}
+          vtuberReady={vtuberReady}
+          open={chatOpen}
+          onToggle={() => setChatOpen((o) => !o)}
+          controlRef={vtChatControlRef}
+        />
       )}
     </>
   );

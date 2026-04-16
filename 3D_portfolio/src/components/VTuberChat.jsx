@@ -25,12 +25,10 @@ const FALLBACK_LINES = [
   "I'm Yuki! Timeshot built me with React & Three.js (⌒‿⌒)",
 ];
 
-// Intro sequence spoken on first load
+// Intro sequence spoken on first load — keep it short
 const INTRO_LINES = [
-  "Hi there! I'm Yuki, welcome to Suhil's portfolio!",
-  "This is an interactive 3D room — use the camera buttons at the top to explore different angles.",
-  "The large monitor on the left is a portfolio desktop, and the smaller one shows live GitHub stats.",
-  "Feel free to chat with me anytime — I know everything about Suhil's work!",
+  "Hi! I'm Yuki, Suhil's AI companion~",
+  "Explore the room with the camera buttons, and chat with me anytime! (◕‿◕)✿",
 ];
 const IDLE_BUBBLE = "Hi! I'm Yuki~ click to chat! (◕‿◕)✿";
 
@@ -71,7 +69,7 @@ function browserSpeak(text, onSpeakingChange, onEnd) {
   if (!window.speechSynthesis) { onEnd?.(); return; }
   window.speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);
-  utter.rate = 0.92; utter.pitch = 1.2; utter.volume = 0.95;
+  utter.rate = 0.92; utter.pitch = 1.2; utter.volume = 0.55;
   const voices = window.speechSynthesis.getVoices();
   const pick = voices.find((v) =>
     /jenny|aria|zira|samantha|victoria|fiona|karen|moira|female|woman/i.test(v.name),
@@ -107,6 +105,7 @@ function useSpeech(onSpeakingChange) {
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      audio.volume = 0.55;
       audioRef.current = audio;
 
       onSpeakingChange(true);
@@ -138,8 +137,11 @@ function useSpeech(onSpeakingChange) {
   return { speak, cancel };
 }
 
-export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
-  const [open,     setOpen]     = useState(false);
+export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open, onToggle, controlRef }) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  // Support both controlled (open prop) and uncontrolled modes
+  const isOpen   = open !== undefined ? open : internalOpen;
+  const toggleOpen = onToggle ?? (() => setInternalOpen((o) => !o));
   const [input,    setInput]    = useState('');
   const [messages, setMessages] = useState([]);   // { role, content }
   const [loading,  setLoading]  = useState(false);
@@ -190,10 +192,15 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
     return () => { cancelled = true; };
   }, [vtuberReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Expose toggleMic to external callers (e.g. CameraHUD mic button)
+  useEffect(() => {
+    if (controlRef) controlRef.current = { toggleMic, isListening: listening };
+  }, [controlRef, toggleMic, listening]);
+
   // Auto-focus input when opened
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 50);
-  }, [open]);
+    if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [isOpen]);
 
   const sendText = async (text) => {
     if (!text || loading) return;
@@ -239,114 +246,92 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  const toggleOpen = () => {
-    if (open) { cancel(); }
-    setOpen((o) => !o);
+  const handleToggle = () => {
+    if (isOpen) cancel();
+    toggleOpen();
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: 20,
-      left: '50%',
-      transform: 'translateX(-50%)',
-      zIndex: 10000,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 6,
-      fontFamily: FONT,
-      pointerEvents: 'none',
-    }}>
-      {/* Comic speech bubble */}
-      <div
-        onClick={toggleOpen}
-        style={{
-          position: 'relative',
-          maxWidth: 220,
-          padding: '8px 13px',
-          borderRadius: '16px',
-          background: 'rgba(255,255,255,0.95)',
-          border: '2.5px solid #333',
-          color: '#111',
-          fontSize: 12,
-          fontWeight: 600,
-          lineHeight: 1.5,
-          cursor: 'pointer',
-          pointerEvents: 'auto',
-          boxShadow: '3px 3px 0px #333',
-          userSelect: 'none',
-          textAlign: 'center',
-        }}
-      >
-        {bubble}
-        <div style={{ color: '#7c3aed', fontSize: 9, marginTop: 3, fontFamily: MONO, fontWeight: 400 }}>
-          {open ? '▾ close chat' : '▸ click to chat'}
+    <>
+      {/* ── Speech bubble — fixed top-left, attached to VTuber ── */}
+      <div style={{
+        position: 'fixed',
+        top: 90,
+        left: 16,
+        zIndex: 10000,
+        pointerEvents: 'none',
+        fontFamily: FONT,
+      }}>
+        <div
+          onClick={handleToggle}
+          style={{
+            position: 'relative',
+            maxWidth: 200,
+            padding: '7px 12px',
+            borderRadius: '14px',
+            background: 'rgba(255,255,255,0.95)',
+            border: '2.5px solid #333',
+            color: '#111',
+            fontSize: 11,
+            fontWeight: 600,
+            lineHeight: 1.5,
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+            boxShadow: '3px 3px 0px #333',
+            userSelect: 'none',
+          }}
+        >
+          {bubble}
+          {/* Tail pointing down-left toward VTuber */}
+          <div style={{
+            position: 'absolute', bottom: -13, left: 18,
+            width: 0, height: 0,
+            borderLeft: '7px solid transparent',
+            borderRight: '7px solid transparent',
+            borderTop: '13px solid #333',
+          }} />
+          <div style={{
+            position: 'absolute', bottom: -9, left: 20,
+            width: 0, height: 0,
+            borderLeft: '5px solid transparent',
+            borderRight: '5px solid transparent',
+            borderTop: '10px solid rgba(255,255,255,0.95)',
+          }} />
         </div>
-        {/* Comic tail pointing down toward VTuber */}
-        <div style={{
-          position: 'absolute',
-          bottom: -14,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 0, height: 0,
-          borderLeft: '8px solid transparent',
-          borderRight: '8px solid transparent',
-          borderTop: '14px solid #333',
-        }} />
-        <div style={{
-          position: 'absolute',
-          bottom: -10,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 0, height: 0,
-          borderLeft: '6px solid transparent',
-          borderRight: '6px solid transparent',
-          borderTop: '11px solid rgba(255,255,255,0.95)',
-        }} />
       </div>
 
-      {/* Chat window — appears above the bubble */}
-      {open && (
+      {/* ── Chat panel — fixed bottom-center, independent of bubble ── */}
+      {isOpen && (
         <div style={{
-          width: 280,
+          position: 'fixed',
+          bottom: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 300,
+          zIndex: 10000,
           background: C.bg,
           border: `1px solid ${C.border}`,
           borderRadius: 12,
           overflow: 'hidden',
           backdropFilter: 'blur(12px)',
           boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-          pointerEvents: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          order: -1,  // renders above the bubble in the flex column
+          fontFamily: FONT,
         }}>
           {/* Header */}
           <div style={{
-            padding: '8px 12px',
-            borderBottom: `1px solid ${C.border}`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
+            padding: '8px 12px', borderBottom: `1px solid ${C.border}`,
+            display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            <div style={{
-              width: 8, height: 8, borderRadius: '50%',
-              background: '#22c55e',
-              boxShadow: '0 0 6px #22c55e',
-            }} />
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
             <span style={{ color: C.accent, fontSize: 12, fontWeight: 600 }}>Yuki</span>
             <span style={{ color: C.muted, fontSize: 10, marginLeft: 'auto', fontFamily: MONO }}>AI companion</span>
+            <button onClick={handleToggle} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 13, padding: '0 2px', lineHeight: 1 }}>✕</button>
           </div>
 
           {/* Messages */}
-          <div style={{
-            maxHeight: 180,
-            overflowY: 'auto',
-            padding: '8px 10px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-          }}>
+          <div style={{ maxHeight: 200, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {messages.length === 0 && (
               <div style={{ color: C.muted, fontSize: 10, textAlign: 'center', padding: '12px 0' }}>
                 Ask me anything about this portfolio~
@@ -355,39 +340,24 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
             {messages.map((m, i) => (
               <div key={i} style={{
                 alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '85%',
-                padding: '5px 9px',
+                maxWidth: '85%', padding: '5px 9px',
                 borderRadius: m.role === 'user' ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
                 background: m.role === 'user' ? 'rgba(124,58,237,0.35)' : 'rgba(255,255,255,0.06)',
                 border: `1px solid ${m.role === 'user' ? 'rgba(124,58,237,0.5)' : 'rgba(255,255,255,0.1)'}`,
-                color: C.text,
-                fontSize: 11,
-                lineHeight: 1.5,
+                color: C.text, fontSize: 11, lineHeight: 1.5,
               }}>
                 {m.content}
               </div>
             ))}
             {loading && (
-              <div style={{
-                alignSelf: 'flex-start',
-                color: C.muted,
-                fontSize: 11,
-                fontFamily: MONO,
-                padding: '4px 0',
-              }}>
+              <div style={{ alignSelf: 'flex-start', color: C.muted, fontSize: 11, fontFamily: MONO, padding: '4px 0' }}>
                 Yuki is thinking…
               </div>
             )}
           </div>
 
           {/* Input */}
-          <div style={{
-            padding: '8px 10px',
-            borderTop: `1px solid ${C.border}`,
-            display: 'flex',
-            gap: 6,
-            alignItems: 'center',
-          }}>
+          <div style={{ padding: '8px 10px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 6, alignItems: 'center' }}>
             <input
               ref={inputRef}
               value={input}
@@ -396,53 +366,25 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
               placeholder="Say something…"
               disabled={loading}
               style={{
-                flex: 1,
-                background: C.input,
-                border: `1px solid ${C.border}`,
-                borderRadius: 6,
-                padding: '5px 8px',
-                color: C.text,
-                fontSize: 11,
-                fontFamily: FONT,
-                outline: 'none',
+                flex: 1, background: C.input, border: `1px solid ${C.border}`,
+                borderRadius: 6, padding: '5px 8px', color: C.text,
+                fontSize: 11, fontFamily: FONT, outline: 'none',
               }}
             />
-            <button
-              onClick={toggleMic}
-              title={listening ? 'Stop listening' : 'Speak to Yuki'}
-              style={{
-                padding: '5px 8px',
-                borderRadius: 6,
-                background: listening ? 'rgba(239,68,68,0.35)' : 'rgba(124,58,237,0.2)',
-                border: `1px solid ${listening ? 'rgba(239,68,68,0.6)' : C.border}`,
-                color: listening ? '#f87171' : C.muted,
-                fontSize: 13,
-                cursor: 'pointer',
-                transition: 'background 0.15s',
-              }}
-            >
-              🎤
-            </button>
             <button
               onClick={send}
               disabled={loading || !input.trim()}
               style={{
-                padding: '5px 10px',
-                borderRadius: 6,
+                padding: '5px 10px', borderRadius: 6,
                 background: input.trim() && !loading ? C.send : 'rgba(124,58,237,0.2)',
-                border: `1px solid ${C.border}`,
-                color: C.text,
-                fontSize: 11,
-                cursor: input.trim() && !loading ? 'pointer' : 'default',
-                fontFamily: MONO,
-                transition: 'background 0.15s',
+                border: `1px solid ${C.border}`, color: C.text,
+                fontSize: 11, cursor: input.trim() && !loading ? 'pointer' : 'default',
+                fontFamily: MONO, transition: 'background 0.15s',
               }}
-            >
-              ↑
-            </button>
+            >↑</button>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

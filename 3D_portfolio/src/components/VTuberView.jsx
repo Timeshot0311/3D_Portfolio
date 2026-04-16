@@ -9,10 +9,9 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
 
-// Camera-local offset: slightly left of center (-X), bottom (-Y), forward (-Z)
-// Positioned to sit just left of the camera preset buttons at bottom-center
-const CAM_OFFSET = new THREE.Vector3(-0.18, -0.52, -1.1);
-const CAM_SCALE  = 0.24;
+// Camera-local offset: top-left of viewport
+const CAM_OFFSET = new THREE.Vector3(-0.52, 0.34, -1.1);
+const CAM_SCALE  = 0.22;
 const FLOAT_AMP  = { x: 0.008, y: 0.012 };
 
 // Reusable objects — never reallocated inside useFrame

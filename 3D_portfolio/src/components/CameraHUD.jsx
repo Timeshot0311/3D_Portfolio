@@ -162,8 +162,82 @@ const kbdStyle = {
   color: C.cyan, letterSpacing: '0.05em',
 };
 
+// ── Chat & Mic icon buttons ──────────────────────────────────────────────────
+function ChatBtn({ active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      title={active ? 'Close chat' : 'Open chat with Yuki'}
+      style={{
+        ...base,
+        justifyContent: 'center',
+        padding: '8px 14px',
+        background: active ? 'rgba(167,139,250,0.22)' : C.surface,
+        color: active ? '#a78bfa' : C.text,
+        border: `1px solid ${active ? 'rgba(167,139,250,0.7)' : C.border}`,
+        backdropFilter: 'blur(10px)',
+        fontSize: 11,
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        clipPath: 'polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)',
+        boxShadow: active ? '0 0 10px rgba(167,139,250,0.4)' : 'none',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'rgba(167,139,250,0.9)';
+        e.currentTarget.style.color       = '#c4b5fd';
+        e.currentTarget.style.background  = 'rgba(167,139,250,0.28)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = active ? 'rgba(167,139,250,0.7)' : C.border;
+        e.currentTarget.style.color       = active ? '#a78bfa' : C.text;
+        e.currentTarget.style.background  = active ? 'rgba(167,139,250,0.22)' : C.surface;
+      }}
+    >
+      <span style={{ fontSize: 14, lineHeight: 1 }}>💬</span>
+      CHAT
+    </button>
+  );
+}
+
+function MicBtn({ active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      title={active ? 'Stop microphone' : 'Speak to Yuki'}
+      style={{
+        ...base,
+        justifyContent: 'center',
+        padding: '8px 14px',
+        background: active ? 'rgba(239,68,68,0.18)' : C.surface,
+        color: active ? '#fca5a5' : C.text,
+        border: `1px solid ${active ? 'rgba(239,68,68,0.6)' : C.border}`,
+        backdropFilter: 'blur(10px)',
+        fontSize: 11,
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        clipPath: 'polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)',
+        boxShadow: active ? '0 0 10px rgba(239,68,68,0.4)' : 'none',
+        animation: active ? 'micPulse 1.2s ease-in-out infinite' : 'none',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'rgba(239,68,68,0.8)';
+        e.currentTarget.style.color       = '#fca5a5';
+        e.currentTarget.style.background  = 'rgba(239,68,68,0.26)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = active ? 'rgba(239,68,68,0.6)' : C.border;
+        e.currentTarget.style.color       = active ? '#fca5a5' : C.text;
+        e.currentTarget.style.background  = active ? 'rgba(239,68,68,0.18)' : C.surface;
+      }}
+    >
+      <span style={{ fontSize: 14, lineHeight: 1 }}>{active ? '🔴' : '🎤'}</span>
+      {active ? 'STOP' : 'MIC'}
+    </button>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
-export default function CameraHUD({ mode, setMode, plcLockRef }) {
+export default function CameraHUD({ mode, setMode, plcLockRef, chatOpen, onChatToggle, onMicToggle, micActive }) {
   const confirmFree = () => {
     setMode('free');
     setTimeout(() => plcLockRef.current?.(), 150);
@@ -306,14 +380,32 @@ export default function CameraHUD({ mode, setMode, plcLockRef }) {
 
   // ── Preset navigation bar — top-right vertical stack ──
   return (
-    <div style={{
-      position: 'fixed', top: 20, right: 20,
-      display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'stretch',
-      zIndex: 9999,
-    }}>
-      {CAMERA_PRESETS.map((p, i) => <PresetBtn key={p.name} preset={p} idx={i} />)}
-      <div style={{ height: 1, background: C.border, margin: '2px 0' }} />
-      <FreeCamBtn onClick={() => setMode('confirming')} />
-    </div>
+    <>
+      <style>{`
+        @keyframes freecamPulse {
+          0%, 100% { box-shadow: 0 0 6px rgba(155,0,255,0.35), 0 0 16px rgba(155,0,255,0.12); }
+          50%       { box-shadow: 0 0 14px rgba(155,0,255,0.7), 0 0 32px rgba(155,0,255,0.28); }
+        }
+        @keyframes micPulse {
+          0%, 100% { box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+          50%       { box-shadow: 0 0 14px rgba(239,68,68,0.8), 0 0 28px rgba(239,68,68,0.35); }
+        }
+        .freecam-btn-pulse { animation: freecamPulse 2.4s ease-in-out infinite; }
+      `}</style>
+      <div style={{
+        position: 'fixed', top: 20, right: 20,
+        display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'stretch',
+        zIndex: 9999,
+      }}>
+        {CAMERA_PRESETS.map((p, i) => <PresetBtn key={p.name} preset={p} idx={i} />)}
+        <div style={{ height: 1, background: C.border, margin: '2px 0' }} />
+        <div className="freecam-btn-pulse" style={{ borderRadius: 2 }}>
+          <FreeCamBtn onClick={() => setMode('confirming')} />
+        </div>
+        <div style={{ height: 1, background: C.border, margin: '2px 0' }} />
+        {onChatToggle && <ChatBtn active={chatOpen} onClick={onChatToggle} />}
+        {onMicToggle  && <MicBtn  active={micActive} onClick={onMicToggle}  />}
+      </div>
+    </>
   );
 }
