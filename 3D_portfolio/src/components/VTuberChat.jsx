@@ -315,6 +315,8 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
             boxShadow: '3px 3px 0px #333',
             userSelect: 'none',
             whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
           }}
         >
           {bubble}
