@@ -98,7 +98,11 @@ function useSpeech(onSpeakingChange) {
         body: JSON.stringify({ text }),
       });
 
-      if (!res.ok) throw new Error('ElevenLabs unavailable');
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        console.warn('[TTS] ElevenLabs failed:', res.status, detail?.error ?? '');
+        throw new Error('ElevenLabs unavailable');
+      }
 
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
