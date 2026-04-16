@@ -6,22 +6,36 @@ import FakeOSDesktop from "../components/FakeOSDesktop";
 import GitHubStats from "../components/GitHubStats";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Screen assignments
-//   large monitor → full FakeOS project showcase
-//   small monitor → GitHub stats
-//
-// Names must match node names in timeshot-room2.glb (case-insensitive fallback).
-// GLB nodes may be Object3D groups, not Mesh — so we search by name only,
-// never filtering by isMesh. Box3.setFromObject works on any Object3D.
+// Screen node names as they appear in timeshot-original-version.glb
 // ─────────────────────────────────────────────────────────────────────────────
-// Node names as they appear in the GLB (underscores, not spaces)
 const SCREEN_MAP = {
-  "large_monitor_screen": "fakeOS",
-  "small_monitor_screen": "github",
+  "wall tv":   "fakeOS",
+  "monitor":   "github",
 };
 
-// Find any Object3D by name — exact first, then case-insensitive.
-// Does NOT check isMesh so it works on group nodes too.
+// ─────────────────────────────────────────────────────────────────────────────
+// Manual screen dimensions (world units).
+// The anchor nodes are paper-thin, so we override their bbox size.
+// Tune these until the Html overlay fills the physical monitor frame.
+// Use Free Camera + tracker to get close, then adjust until it looks right.
+// ─────────────────────────────────────────────────────────────────────────────
+// Effective width the Html overlay will appear in the scene.
+// drei's Html transform normalises internally by ~canvas_height/2, so this
+// value ends up being ~7–8× smaller on screen than raw Three.js world units.
+// Tune until content fills the physical monitor frame when at the preset view.
+const SCREEN_W = {
+  fakeOS: 1190,   // large monitor — 70× previous value; dial back if too large
+  github:  840,   // small monitor
+};
+const SCREEN_ASPECT = {
+  fakeOS: 16 / 9,
+  github: 4 / 3,
+};
+
+// CSS pixel resolution — higher = crisper text (heavier GPU cost)
+const CSS_W = 768;
+
+// Find any Object3D by name — exact first, then case-insensitive
 function findScreenNode(root, name) {
   const exact = root.getObjectByName(name);
   if (exact) return exact;
@@ -33,12 +47,15 @@ function findScreenNode(root, name) {
   return found;
 }
 
+// Reusable objects — never reallocated inside useFrame
+const _pos  = new THREE.Vector3();
+const _quat = new THREE.Quaternion();
+const _bbox = new THREE.Box3();
+
 export default function RoomScene() {
-  const { scene } = useGLTF("/models/timeshot-room2.glb");
+  const { scene } = useGLTF("/models/timeshot-original-version.glb");
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
-  // Screens are computed on the first useFrame tick so the primitive is
-  // already in the scene graph and world matrices are fully up to date.
   const [screenData, setScreenData] = useState([]);
   const computed = useRef(false);
 
@@ -46,38 +63,49 @@ export default function RoomScene() {
     if (computed.current) return;
 
     const result = [];
+
     Object.entries(SCREEN_MAP).forEach(([name, type]) => {
       const node = findScreenNode(cloned, name);
       if (!node) {
-        // Log all node names to help debug typos / renamed nodes
         const allNames = [];
         cloned.traverse((o) => { if (o.name) allNames.push(o.name); });
-        console.warn(`RoomScene: node "${name}" not found. Available names:`, allNames);
+        console.warn(`[RoomScene] "${name}" not found. Available:`, allNames);
         return;
       }
 
-      // Hide the geometry — Html overlay replaces it visually
-      node.visible = false;
+      // ── Get position + rotation BEFORE hiding (visibility may affect bbox) ──
       node.updateWorldMatrix(true, true);
 
-      // Works on any Object3D (group or mesh)
-      const bbox = new THREE.Box3().setFromObject(node);
-      if (bbox.isEmpty()) {
-        console.warn(`RoomScene: node "${name}" has an empty bounding box`);
-        return;
+      // World position: use bbox center so it lands on the screen face, not origin
+      _bbox.setFromObject(node);      // node is still visible here
+      if (_bbox.isEmpty()) {
+        // Fallback: use node world position directly
+        node.getWorldPosition(_pos);
+      } else {
+        _bbox.getCenter(_pos);
       }
+      const center = _pos.clone();
 
-      const center = new THREE.Vector3();
-      bbox.getCenter(center);
-      const size = bbox.getSize(new THREE.Vector3());
+      // World rotation
+      node.getWorldQuaternion(_quat);
+      const euler = new THREE.Euler().setFromQuaternion(_quat.clone(), "YXZ");
 
-      const quat = new THREE.Quaternion();
-      node.matrixWorld.decompose(new THREE.Vector3(), quat, new THREE.Vector3());
-      const euler = new THREE.Euler().setFromQuaternion(quat, "YXZ");
+      // Log raw bbox for calibration reference
+      const rawSize = _bbox.getSize(new THREE.Vector3());
+      console.info(`[RoomScene] "${name}" (${type}) — raw bbox:`, {
+        w: rawSize.x.toFixed(4), h: rawSize.y.toFixed(4), d: rawSize.z.toFixed(4),
+        center: center.toArray().map(v => v.toFixed(3)),
+      });
 
-      const cssW       = 512;
-      const cssH       = Math.round((size.y / Math.max(size.x, 0.001)) * cssW);
-      const pixelScale = size.x / cssW;
+      // ── NOW hide the geometry — Html overlay replaces it visually ──
+      node.visible = false;
+
+      // ── Compute Html layout from manual size overrides ──
+      const worldW = SCREEN_W[type] ?? 1.0;
+      const aspect = SCREEN_ASPECT[type] ?? (16 / 9);
+      const cssW   = CSS_W;
+      const cssH   = Math.round(cssW / aspect);
+      const pixelScale = worldW / cssW;
 
       result.push({ id: node.uuid, type, center, euler, cssW, cssH, pixelScale });
     });
@@ -85,11 +113,10 @@ export default function RoomScene() {
     if (result.length > 0) {
       computed.current = true;
       setScreenData(result);
-      // Expose screen centers for camera-preset coordinate discovery
       window.__screenCenters = Object.fromEntries(
-        result.map(({ type, center }) => [type, center]),
+        result.map(({ type, center }) => [type, center.toArray()]),
       );
-      console.info('[RoomScene] screen centers:', window.__screenCenters);
+      console.info("[RoomScene] screen centers:", window.__screenCenters);
     }
   });
 
@@ -120,4 +147,4 @@ export default function RoomScene() {
   );
 }
 
-useGLTF.preload("/models/timeshot-room2.glb");
+useGLTF.preload("/models/timeshot-original-version.glb");

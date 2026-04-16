@@ -6,29 +6,29 @@ import { PointerLockControls } from '@react-three/drei';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-export const SPAWN_POSITION = new THREE.Vector3(2.7, 4.05, 4.6);
-export const SPAWN_LOOK_AT  = new THREE.Vector3(2.9, 3.55, 2.85);
+export const SPAWN_POSITION = new THREE.Vector3(-2.338, 7.420, 10.366);
+export const SPAWN_LOOK_AT  = new THREE.Vector3(-2.317, 6.685, 9.059);
 
 export const CAMERA_PRESETS = [
   {
     name: 'Overview',
-    position: new THREE.Vector3(2.7, 4.05, 4.6),
-    lookAt:   new THREE.Vector3(2.9, 3.55, 2.85),
+    position: new THREE.Vector3(-2.338, 7.420, 10.366),
+    lookAt:   new THREE.Vector3(-2.317, 6.685,  9.059),
   },
   {
     name: 'Desk',
-    position: new THREE.Vector3(2.7, 3.75, 3.3),
-    lookAt:   new THREE.Vector3(2.9, 3.55, 2.85),
+    position: new THREE.Vector3(1.881, 3.183, -4.285),
+    lookAt:   new THREE.Vector3(3.047, 3.074, -5.222),
   },
   {
     name: 'Left Monitor',
-    position: new THREE.Vector3(2.1, 3.65, 3.0),
-    lookAt:   new THREE.Vector3(2.4, 3.55, 2.82),
+    position: new THREE.Vector3(4.053, 3.260, -8.958),
+    lookAt:   new THREE.Vector3(3.817, 3.334, -10.438),
   },
   {
     name: 'Right Monitor',
-    position: new THREE.Vector3(3.3, 3.65, 3.0),
-    lookAt:   new THREE.Vector3(3.1, 3.55, 2.82),
+    position: new THREE.Vector3(7.185, 3.306, -9.607),
+    lookAt:   new THREE.Vector3(7.230, 3.263, -11.105),
   },
 ];
 

@@ -66,15 +66,30 @@ export default function VTuberView({ isSpeaking = false }) {
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
     loader.load(
-      '/models/VTuber2.vrm',
+      '/models/VTuber3.vrm',
       (gltf) => {
         const vrm = gltf.userData.vrm;
         VRMUtils.combineSkeletons?.(vrm.scene);
 
-        // rotateVRM0 rotates the model 180° on Y so it faces +Z (toward viewer).
-        // VRM0 models naturally face -Z; without this the character faces away.
-        // In camera-relative mode (+Z = toward viewer) this is exactly what we need.
-        VRMUtils.rotateVRM0?.(vrm);
+        // VRM0 faces -Z by default; rotateVRM0 flips it to +Z (toward viewer
+        // in camera-relative mode). VRM1 already faces +Z — don't rotate it.
+        const isVRM0 = (vrm.meta?.metaVersion ?? vrm.meta?.specVersion ?? '0') === '0';
+        if (isVRM0) VRMUtils.rotateVRM0?.(vrm);
+
+        // Fix hair / clothing transparency sorting (common VRM0 artefact).
+        // Transparent meshes (hair, clothes) must render after opaque ones.
+        vrm.scene.traverse((obj) => {
+          if (!obj.isMesh) return;
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach((mat) => {
+            if (mat?.transparent || mat?.alphaTest > 0) {
+              obj.renderOrder = 2;
+              if (mat.depthWrite === undefined || mat.depthWrite) {
+                mat.depthWrite = false; // prevent z-fighting between hair strands
+              }
+            }
+          });
+        });
 
         vrmRef.current = vrm;
         group.add(vrm.scene);
