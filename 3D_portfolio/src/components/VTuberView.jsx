@@ -83,22 +83,26 @@ export default function VTuberView({ isSpeaking = false }) {
         // VRM0 faces -Z by default; rotateVRM0 flips it to +Z (toward viewer
         // in camera-relative mode). VRM1 already faces +Z — don't rotate it.
         const isVRM0 = (vrm.meta?.metaVersion ?? vrm.meta?.specVersion ?? '0') === '0';
+        console.info(`[VTuber] VRM${isVRM0 ? '0' : '1'} detected`);
         if (isVRM0) VRMUtils.rotateVRM0?.(vrm);
 
-        // Fix hair / clothing transparency sorting (common VRM0 artefact).
-        // Transparent meshes (hair, clothes) must render after opaque ones.
-        vrm.scene.traverse((obj) => {
-          if (!obj.isMesh) return;
-          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-          mats.forEach((mat) => {
-            if (mat?.transparent || mat?.alphaTest > 0) {
-              obj.renderOrder = 2;
-              if (mat.depthWrite === undefined || mat.depthWrite) {
-                mat.depthWrite = false; // prevent z-fighting between hair strands
+        // Hair / clothing transparency sorting fix — VRM0 only.
+        // MToon1 (VRM1) manages its own render order; applying depthWrite=false
+        // to its materials causes the entire model to render as a dark silhouette.
+        if (isVRM0) {
+          vrm.scene.traverse((obj) => {
+            if (!obj.isMesh) return;
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach((mat) => {
+              if (mat?.transparent || mat?.alphaTest > 0) {
+                obj.renderOrder = 2;
+                if (mat.depthWrite === undefined || mat.depthWrite) {
+                  mat.depthWrite = false;
+                }
               }
-            }
+            });
           });
-        });
+        }
 
         vrmRef.current = vrm;
         group.add(vrm.scene);
