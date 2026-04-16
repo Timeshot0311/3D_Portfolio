@@ -19,7 +19,7 @@ const _worldPos  = new THREE.Vector3();
 const _mouseWS   = new THREE.Vector3();
 const PHONEMES   = ['aa', 'ih', 'ou', 'ee', 'oh'];
 
-export default function VTuberView({ isSpeaking = false }) {
+export default function VTuberView({ isSpeaking = false, onReady }) {
   const groupRef = useRef(new THREE.Group());
   const vrmRef   = useRef(null);
   const mixerRef = useRef(null);
@@ -76,6 +76,7 @@ export default function VTuberView({ isSpeaking = false }) {
 
         vrmRef.current = vrm;
         group.add(vrm.scene);
+        onReady?.();   // signal to VTuberChat that the model is in the scene
 
         // Idle arm pose — do NOT autoplay embedded clips; they override bone rotations
         const h = vrm.humanoid;

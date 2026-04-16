@@ -25,7 +25,8 @@ export default function App() {
   const plcLockRef = useRef(null); // set by FreeCameraControls, called by CameraHUD
 
   // isSpeaking is set by VTuberChat TTS callbacks and forwarded to VTuberView for lip sync
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isSpeaking,   setIsSpeaking]   = useState(false);
+  const [vtuberReady,  setVtuberReady]  = useState(false);
 
   const handleEnter = () => {
     const loaderEl = document.getElementById('loading-overlay');
@@ -57,7 +58,7 @@ export default function App() {
         {sceneVisible && (
           <Suspense fallback={null}>
             <RoomScene />
-            <VTuberView isSpeaking={isSpeaking} />
+            <VTuberView isSpeaking={isSpeaking} onReady={() => setVtuberReady(true)} />
           </Suspense>
         )}
 
@@ -92,7 +93,7 @@ export default function App() {
       )}
       {/* VTuber AI chat — positioned bottom-left, near the VTuber companion */}
       {sceneVisible && (
-        <VTuberChat onSpeakingChange={setIsSpeaking} />
+        <VTuberChat onSpeakingChange={setIsSpeaking} vtuberReady={vtuberReady} />
       )}
     </>
   );

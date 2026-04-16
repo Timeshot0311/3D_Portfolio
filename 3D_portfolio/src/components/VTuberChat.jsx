@@ -34,6 +34,38 @@ const INTRO_LINES = [
 ];
 const IDLE_BUBBLE = "Hi! I'm Yuki~ click to chat! (◕‿◕)✿";
 
+function useMic(onTranscript) {
+  const [listening, setListening] = useState(false);
+  const recogRef = useRef(null);
+
+  const toggle = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert('Speech recognition not supported in this browser.'); return; }
+
+    if (listening) {
+      recogRef.current?.stop();
+      setListening(false);
+      return;
+    }
+
+    const recog = new SR();
+    recog.lang = 'en-US';
+    recog.interimResults = false;
+    recog.maxAlternatives = 1;
+    recog.onresult = (e) => {
+      const text = e.results[0]?.[0]?.transcript;
+      if (text) onTranscript(text);
+    };
+    recog.onend   = () => setListening(false);
+    recog.onerror = () => setListening(false);
+    recogRef.current = recog;
+    recog.start();
+    setListening(true);
+  };
+
+  return { toggle, listening };
+}
+
 // Browser TTS fallback (used when ElevenLabs key is absent)
 function browserSpeak(text, onSpeakingChange, onEnd) {
   if (!window.speechSynthesis) { onEnd?.(); return; }
@@ -102,7 +134,7 @@ function useSpeech(onSpeakingChange) {
   return { speak, cancel };
 }
 
-export default function VTuberChat({ onSpeakingChange }) {
+export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
   const [open,     setOpen]     = useState(false);
   const [input,    setInput]    = useState('');
   const [messages, setMessages] = useState([]);   // { role, content }
@@ -113,62 +145,61 @@ export default function VTuberChat({ onSpeakingChange }) {
   const inputRef      = useRef(null);
   const introRef      = useRef(false); // prevent double-run in strict mode
   const { speak, cancel } = useSpeech(onSpeakingChange ?? (() => {}));
+  const { toggle: toggleMic, listening } = useMic((text) => {
+    setInput(text);
+    // Auto-send after a short delay so user sees what was transcribed
+    setTimeout(() => {
+      setInput('');
+      const userMsg = { role: 'user', content: text };
+      historyRef.current = [...historyRef.current, userMsg];
+      setMessages((m) => [...m, { role: 'user', content: text }]);
+      sendText(text);
+    }, 600);
+  });
 
-  // Intro sequence — plays once on mount after voices are ready
+  // Intro sequence — fires once when VTuber model is in the scene
   useEffect(() => {
-    if (introRef.current) return;
+    if (!vtuberReady || introRef.current) return;
     introRef.current = true;
 
     let cancelled = false;
 
-    const runIntro = (lines, idx = 0) => {
-      if (cancelled || idx >= lines.length) {
+    const runIntro = (idx = 0) => {
+      if (cancelled || idx >= INTRO_LINES.length) {
         if (!cancelled) setBubble(IDLE_BUBBLE);
         return;
       }
-      setBubble(lines[idx]);
-      speak(lines[idx], () => {
-        // Short pause between lines
-        setTimeout(() => runIntro(lines, idx + 1), 400);
+      setBubble(INTRO_LINES[idx]);
+      speak(INTRO_LINES[idx], () => {
+        setTimeout(() => runIntro(idx + 1), 400);
       });
     };
 
-    // Wait 2 s for scene + voices to settle, then start
-    const timer = setTimeout(() => {
-      // Voices may not be loaded yet — wait for voiceschanged if empty
-      const start = () => runIntro(INTRO_LINES);
-      if (window.speechSynthesis?.getVoices().length > 0) {
-        start();
-      } else {
-        window.speechSynthesis?.addEventListener('voiceschanged', start, { once: true });
-      }
-    }, 2000);
+    // Give browser a tick to paint the VTuber before speaking
+    const start = () => runIntro(0);
+    if (window.speechSynthesis?.getVoices().length > 0) {
+      setTimeout(start, 300);
+    } else {
+      window.speechSynthesis?.addEventListener('voiceschanged', () => setTimeout(start, 300), { once: true });
+    }
 
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { cancelled = true; };
+  }, [vtuberReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-focus input when opened
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 50);
   }, [open]);
 
-  const send = async () => {
-    const text = input.trim();
+  const sendText = async (text) => {
     if (!text || loading) return;
-
-    setInput('');
-    const userMsg = { role: 'user', content: text };
-    historyRef.current = [...historyRef.current, userMsg];
-    setMessages((m) => [...m, { role: 'user', content: text }]);
     setLoading(true);
-
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: historyRef.current }),
       });
-
       let reply;
       if (res.ok) {
         const data = await res.json();
@@ -176,15 +207,10 @@ export default function VTuberChat({ onSpeakingChange }) {
       } else {
         reply = FALLBACK_LINES[Math.floor(Math.random() * FALLBACK_LINES.length)];
       }
-
-      historyRef.current = [
-        ...historyRef.current,
-        { role: 'assistant', content: reply },
-      ];
+      historyRef.current = [...historyRef.current, { role: 'assistant', content: reply }];
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
       setBubble(reply);
       speak(reply);
-
     } catch {
       const reply = FALLBACK_LINES[Math.floor(Math.random() * FALLBACK_LINES.length)];
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
@@ -193,6 +219,16 @@ export default function VTuberChat({ onSpeakingChange }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const send = () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    setInput('');
+    const userMsg = { role: 'user', content: text };
+    historyRef.current = [...historyRef.current, userMsg];
+    setMessages((m) => [...m, { role: 'user', content: text }]);
+    sendText(text);
   };
 
   const handleKey = (e) => {
@@ -342,6 +378,22 @@ export default function VTuberChat({ onSpeakingChange }) {
                 outline: 'none',
               }}
             />
+            <button
+              onClick={toggleMic}
+              title={listening ? 'Stop listening' : 'Speak to Yuki'}
+              style={{
+                padding: '5px 8px',
+                borderRadius: 6,
+                background: listening ? 'rgba(239,68,68,0.35)' : 'rgba(124,58,237,0.2)',
+                border: `1px solid ${listening ? 'rgba(239,68,68,0.6)' : C.border}`,
+                color: listening ? '#f87171' : C.muted,
+                fontSize: 13,
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+            >
+              🎤
+            </button>
             <button
               onClick={send}
               disabled={loading || !input.trim()}
