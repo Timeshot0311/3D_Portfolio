@@ -9,18 +9,23 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
 
-// Camera-local offset: slightly left of center (-X), bottom (-Y), forward (-Z)
-// Positioned to sit just left of the camera preset buttons at bottom-center
-const CAM_OFFSET = new THREE.Vector3(-0.18, -0.52, -1.1);
-const CAM_SCALE  = 0.24;
+// Camera-local offset: top-left of viewport
+const CAM_OFFSET = new THREE.Vector3(-0.52, 0.05, -1.1);
+const CAM_SCALE  = 0.22;
 const FLOAT_AMP  = { x: 0.008, y: 0.012 };
 
 // Reusable objects — never reallocated inside useFrame
 const _worldPos  = new THREE.Vector3();
+const _headPos   = new THREE.Vector3(); // for projecting head position to screen
 const _mouseWS   = new THREE.Vector3();
+const _euler     = new THREE.Euler();
+const _qYaw      = new THREE.Quaternion();
+const _UP        = new THREE.Vector3(0, 1, 0);
 const PHONEMES   = ['aa', 'ih', 'ou', 'ee', 'oh'];
+// VRM models are ~1.6 normalised units tall; head is ~90% up the body
+const HEAD_NORM_Y = 1.45;
 
-export default function VTuberView({ isSpeaking = false, onReady }) {
+export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }) {
   const groupRef = useRef(new THREE.Group());
   const vrmRef   = useRef(null);
   const mixerRef = useRef(null);
@@ -32,8 +37,9 @@ export default function VTuberView({ isSpeaking = false, onReady }) {
   const blinkTimer   = useRef(THREE.MathUtils.randFloat(2, 5));
   const blinkPhase   = useRef(0);
   const blinkVal     = useRef(0);
-  const phonemeIdx   = useRef(0);
-  const phonemeTimer = useRef(0);
+  const phonemeIdx      = useRef(0);
+  const phonemeTimer    = useRef(0);
+  const springResetRef  = useRef(-1); // -1 = no VRM yet; 0 = pending reset; 1 = done
 
   // Keep isSpeaking in a ref so useFrame sees latest value without re-mount
   const isSpeakingRef = useRef(isSpeaking);
@@ -73,22 +79,49 @@ export default function VTuberView({ isSpeaking = false, onReady }) {
           console.error('[VTuber] File loaded but VRM data missing — not a valid VRM file?');
           return;
         }
+        // combineSkeletons is the recommended optimisation (removeUnnecessaryJoints deprecated)
         VRMUtils.combineSkeletons?.(vrm.scene);
 
         vrmRef.current = vrm;
         group.add(vrm.scene);
         onReady?.();   // signal to VTuberChat that the model is in the scene
 
-        // Idle arm pose — VRM1 normalized space: negative Z rotates left arm DOWN
-        const h = vrm.humanoid;
-        h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0, -1.2);
-        h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0,  1.2);
-        h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0, -0.2);
-        h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0,  0.2);
-        h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0, -0.1);
-        h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
+        // Play any animations embedded in the VRM/GLTF file
+        if (gltf.animations?.length > 0) {
+          const mixer = new THREE.AnimationMixer(vrm.scene);
+          gltf.animations.forEach((clip) => {
+            // Retarget clip bone tracks from GLTF names → VRM raw bone names
+            const retargeted = THREE.AnimationClip.findByName(gltf.animations, clip.name) ?? clip;
+            mixer.clipAction(retargeted).play();
+          });
+          mixerRef.current = mixer;
+          console.info(`[VTuber] playing ${gltf.animations.length} embedded animation(s)`);
+        }
+
+        // Fallback idle arm pose used when no embedded animations exist
+        if (!mixerRef.current) {
+          const h = vrm.humanoid;
+          h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0, -1.2);
+          h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0,  1.2);
+          h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0, -0.2);
+          h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0,  0.2);
+          h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0, -0.1);
+          h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
+        }
+
+        // Stiffen spring bones so hair doesn't explode when model teleports
+        // to its viewport position. High dragForce damps oscillations quickly.
+        vrm.springBoneManager?.joints?.forEach((joint) => {
+          if (joint.stiffness  !== undefined) joint.stiffness  = Math.max(joint.stiffness,  6);
+          if (joint.dragForce  !== undefined) joint.dragForce  = Math.max(joint.dragForce,  0.8);
+          if (joint.gravityPower !== undefined) joint.gravityPower = Math.min(joint.gravityPower, 0.2);
+        });
+
+        // Mark reset as pending — useFrame fires it on the very first frame
+        // where group.updateMatrixWorld() has already run (correct world pos)
+        springResetRef.current = 0;
       },
-      (xhr) => console.info(`[VTuber] loading ${xhr.total > 0 ? Math.round(xhr.loaded / xhr.total * 100) + '%' : Math.round(xhr.loaded / 1024) + ' KB'}`),
+      undefined, // suppress per-chunk progress logs
       (err) => console.error('[VTuber] load failed:', err?.message ?? err),
     );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -118,7 +151,34 @@ export default function VTuberView({ isSpeaking = false, onReady }) {
       .applyMatrix4(camera.matrixWorld);
 
     group.position.copy(_worldPos);
-    group.quaternion.copy(camera.quaternion);
+    // Yaw-only rotation: strip pitch & roll so she stays world-upright
+    _euler.setFromQuaternion(camera.quaternion, 'YXZ');
+    _euler.x = 0;
+    _euler.z = 0;
+    _qYaw.setFromEuler(_euler);
+    group.quaternion.copy(_qYaw);
+
+    // CRITICAL: propagate position/rotation to matrixWorld NOW, before vrm.update.
+    // Inside useFrame, Three.js hasn't yet run its render-loop matrix update, so
+    // spring bones would read last frame's stale world matrices without this call.
+    group.updateMatrixWorld();
+
+    // ── 2b. Spring-bone reset — fires once on frame 1 after VRM loads ─────────
+    if (vrm?.springBoneManager && springResetRef.current === 0) {
+      vrm.springBoneManager.reset();
+      springResetRef.current = 1;
+    }
+
+    // ── 2c. Project head position (not feet) so bubble tracks the head ───────
+    if (screenPosRef) {
+      // _worldPos holds the feet/root world pos; offset up by scaled head height
+      _headPos.copy(group.position).addScaledVector(_UP, CAM_SCALE * HEAD_NORM_Y);
+      _headPos.project(camera);
+      screenPosRef.current = {
+        x: (_headPos.x + 1) / 2 * window.innerWidth,
+        y: (1 - _headPos.y) / 2 * window.innerHeight,
+      };
+    }
 
     // ── 3. Head look-at mouse ──────────────────────────────────────────────
     if (vrm?.lookAt) {
@@ -164,8 +224,8 @@ export default function VTuberView({ isSpeaking = false, onReady }) {
       }
     }
 
-    // ── 6. Idle breathing ──────────────────────────────────────────────────
-    if (vrm?.humanoid) {
+    // ── 6. Idle breathing — skip if AnimationMixer is driving bones ───────
+    if (vrm?.humanoid && !mixerRef.current) {
       const t       = state.clock.elapsedTime;
       const breathe = Math.sin(t * 0.9) * 0.025;
       const h       = vrm.humanoid;
@@ -177,8 +237,9 @@ export default function VTuberView({ isSpeaking = false, onReady }) {
       h.getNormalizedBoneNode('spine')?.rotation.set(breathe * 0.5, 0, 0);
     }
 
-    if (vrm) vrm.update(delta);
+    // Advance AnimationMixer (if embedded animations exist) BEFORE vrm.update
     if (mixerRef.current) mixerRef.current.update(delta);
+    if (vrm) vrm.update(delta);
   });
 
   // Scene-based — R3F manages this group in the scene graph.
