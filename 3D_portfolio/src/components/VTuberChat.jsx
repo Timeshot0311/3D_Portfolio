@@ -207,7 +207,7 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
   useEffect(() => {
     if (!screenPosRef) return;
     let raf;
-    const BUBBLE_Y_OFFSET = -115; // px above VTuber center (clears the head)
+    const BUBBLE_Y_OFFSET = -220; // px above VTuber root (root bone is at feet, head is ~200px up)
     const update = () => {
       if (bubbleDivRef.current) {
         const { x, y } = screenPosRef.current ?? {};
