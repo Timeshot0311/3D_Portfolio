@@ -8,13 +8,11 @@ import { useState, useRef, useEffect } from 'react';
 const FONT = '"Segoe UI", system-ui, sans-serif';
 const MONO = '"Cascadia Code", "Fira Code", monospace';
 
-// Strip emoji and kaomoji so TTS doesn't read out symbol names
+// Strip everything outside printable ASCII before TTS — catches all emoji,
+// kaomoji, full-width chars, and decorative symbols in one pass.
 const cleanForTTS = (text) =>
   text
-    .replace(/[\u{1F000}-\u{1FAFF}]/gu, '')   // standard emoji (flags, faces, etc.)
-    .replace(/[\u{2600}-\u{27BF}]/gu, '')      // misc symbols & dingbats
-    .replace(/[（(][^a-zA-Z\s]{1,12}[）)]/g, '') // (kaomoji) e.g. (＞﹏＜) (◕‿◕)
-    .replace(/[～♪♫♡❤★☆✿◕✓✗＊]/g, '')       // stray decorative chars
+    .replace(/[^\x20-\x7D]/g, ' ') // keep only printable ASCII (excludes ~ too)
     .replace(/\s+/g, ' ')
     .trim();
 
