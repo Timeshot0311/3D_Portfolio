@@ -247,13 +247,12 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
   return (
     <div style={{
       position: 'fixed',
-      bottom: 70,           // above the camera-button bar
-      left: '50%',
-      transform: 'translateX(-58%)',  // nudge left to sit over the VTuber
+      bottom: 20,
+      left: 20,
       zIndex: 10000,
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       gap: 6,
       fontFamily: FONT,
       pointerEvents: 'none',
@@ -283,12 +282,11 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
         <div style={{ color: '#7c3aed', fontSize: 9, marginTop: 3, fontFamily: MONO, fontWeight: 400 }}>
           {open ? '▾ close chat' : '▸ click to chat'}
         </div>
-        {/* Comic tail pointing down toward VTuber */}
+        {/* Comic tail pointing down-left toward VTuber */}
         <div style={{
           position: 'absolute',
           bottom: -14,
-          left: '50%',
-          transform: 'translateX(-50%)',
+          left: 24,
           width: 0, height: 0,
           borderLeft: '8px solid transparent',
           borderRight: '8px solid transparent',
@@ -297,8 +295,7 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
         <div style={{
           position: 'absolute',
           bottom: -10,
-          left: '50%',
-          transform: 'translateX(-50%)',
+          left: 26,
           width: 0, height: 0,
           borderLeft: '6px solid transparent',
           borderRight: '6px solid transparent',
@@ -319,7 +316,7 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
           pointerEvents: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          order: -1,  // renders above the speech bubble in flex column
+          order: -1,  // renders above the bubble in the flex column
         }}>
           {/* Header */}
           <div style={{

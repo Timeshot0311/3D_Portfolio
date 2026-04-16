@@ -304,15 +304,15 @@ export default function CameraHUD({ mode, setMode, plcLockRef }) {
     );
   }
 
-  // ── Preset navigation bar ──
+  // ── Preset navigation bar — top-right vertical stack ──
   return (
     <div style={{
-      position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
-      display: 'flex', gap: 6, alignItems: 'center',
-      zIndex: 9999, flexWrap: 'wrap', justifyContent: 'center', maxWidth: '95vw',
+      position: 'fixed', top: 20, right: 20,
+      display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'stretch',
+      zIndex: 9999,
     }}>
       {CAMERA_PRESETS.map((p, i) => <PresetBtn key={p.name} preset={p} idx={i} />)}
-      <div style={{ width: 1, height: 28, background: C.border, margin: '0 4px' }} />
+      <div style={{ height: 1, background: C.border, margin: '2px 0' }} />
       <FreeCamBtn onClick={() => setMode('confirming')} />
     </div>
   );

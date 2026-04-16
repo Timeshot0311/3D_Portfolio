@@ -22,9 +22,9 @@ async function tryTTS(apiKey, text, modelId) {
         text,
         model_id: modelId,
         voice_settings: {
-          stability:         0.55,
-          similarity_boost:  0.80,
-          style:             0.10,
+          stability:         0.35,  // lower = more expressive, less robotic
+          similarity_boost:  0.75,
+          style:             0.45,  // higher = more personality/inflection
           use_speaker_boost: true,
         },
       }),
