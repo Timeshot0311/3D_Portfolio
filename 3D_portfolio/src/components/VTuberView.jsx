@@ -16,11 +16,14 @@ const FLOAT_AMP  = { x: 0.008, y: 0.012 };
 
 // Reusable objects — never reallocated inside useFrame
 const _worldPos  = new THREE.Vector3();
+const _headPos   = new THREE.Vector3(); // for projecting head position to screen
 const _mouseWS   = new THREE.Vector3();
 const _euler     = new THREE.Euler();
 const _qYaw      = new THREE.Quaternion();
 const _UP        = new THREE.Vector3(0, 1, 0);
 const PHONEMES   = ['aa', 'ih', 'ou', 'ee', 'oh'];
+// VRM models are ~1.6 normalised units tall; head is ~90% up the body
+const HEAD_NORM_Y = 1.45;
 
 export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }) {
   const groupRef = useRef(new THREE.Group());
@@ -75,10 +78,8 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
           console.error('[VTuber] File loaded but VRM data missing — not a valid VRM file?');
           return;
         }
+        // combineSkeletons is the recommended optimisation (removeUnnecessaryJoints deprecated)
         VRMUtils.combineSkeletons?.(vrm.scene);
-        // Remove double-sided rendering — improves performance & fixes some skeleton artifacts
-        VRMUtils.removeUnnecessaryVertices?.(vrm.scene);
-        VRMUtils.removeUnnecessaryJoints?.(vrm.scene);
 
         vrmRef.current = vrm;
         group.add(vrm.scene);
@@ -106,6 +107,10 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
           h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0, -0.1);
           h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
         }
+
+        // Reset spring-bone physics after a brief delay so they settle from
+        // the model's actual world position rather than the origin
+        setTimeout(() => vrm.springBoneManager?.reset?.(), 200);
       },
       (xhr) => console.info(`[VTuber] loading ${xhr.total > 0 ? Math.round(xhr.loaded / xhr.total * 100) + '%' : Math.round(xhr.loaded / 1024) + ' KB'}`),
       (err) => console.error('[VTuber] load failed:', err?.message ?? err),
@@ -144,12 +149,14 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
     _qYaw.setFromEuler(_euler);
     group.quaternion.copy(_qYaw);
 
-    // ── 2b. Write screen position so bubble can follow (project after use) ──
+    // ── 2b. Project head position (not feet) so bubble tracks the head ───────
     if (screenPosRef) {
-      _worldPos.project(camera); // mutates _worldPos to NDC — safe, we're done with it
+      // _worldPos holds the feet/root world pos; offset up by scaled head height
+      _headPos.copy(group.position).addScaledVector(_UP, CAM_SCALE * HEAD_NORM_Y);
+      _headPos.project(camera);
       screenPosRef.current = {
-        x: (_worldPos.x + 1) / 2 * window.innerWidth,
-        y: (1 - _worldPos.y) / 2 * window.innerHeight,
+        x: (_headPos.x + 1) / 2 * window.innerWidth,
+        y: (1 - _headPos.y) / 2 * window.innerHeight,
       };
     }
 
