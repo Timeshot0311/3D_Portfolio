@@ -10,7 +10,7 @@ import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
 
 // Camera-local offset: top-left of viewport
-const CAM_OFFSET = new THREE.Vector3(-0.52, 0.34, -1.1);
+const CAM_OFFSET = new THREE.Vector3(-0.52, 0.05, -1.1);
 const CAM_SCALE  = 0.22;
 const FLOAT_AMP  = { x: 0.008, y: 0.012 };
 
@@ -37,8 +37,9 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
   const blinkTimer   = useRef(THREE.MathUtils.randFloat(2, 5));
   const blinkPhase   = useRef(0);
   const blinkVal     = useRef(0);
-  const phonemeIdx   = useRef(0);
-  const phonemeTimer = useRef(0);
+  const phonemeIdx      = useRef(0);
+  const phonemeTimer    = useRef(0);
+  const springResetRef  = useRef(0); // counts frames after VRM load before spring-bone reset
 
   // Keep isSpeaking in a ref so useFrame sees latest value without re-mount
   const isSpeakingRef = useRef(isSpeaking);
@@ -108,9 +109,8 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
           h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
         }
 
-        // Reset spring-bone physics after a brief delay so they settle from
-        // the model's actual world position rather than the origin
-        setTimeout(() => vrm.springBoneManager?.reset?.(), 200);
+        // Reset spring-bone counter — useFrame will call reset after 3 positioned frames
+        springResetRef.current = 0;
       },
       (xhr) => console.info(`[VTuber] loading ${xhr.total > 0 ? Math.round(xhr.loaded / xhr.total * 100) + '%' : Math.round(xhr.loaded / 1024) + ' KB'}`),
       (err) => console.error('[VTuber] load failed:', err?.message ?? err),
@@ -149,7 +149,16 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
     _qYaw.setFromEuler(_euler);
     group.quaternion.copy(_qYaw);
 
-    // ── 2b. Project head position (not feet) so bubble tracks the head ───────
+    // ── 2b. Spring-bone reset — fires once after 3 frames at correct position ─
+    if (vrm?.springBoneManager && springResetRef.current < 3) {
+      springResetRef.current += 1;
+      if (springResetRef.current === 3) {
+        vrm.scene.updateWorldMatrix(true, true);
+        vrm.springBoneManager.reset();
+      }
+    }
+
+    // ── 2c. Project head position (not feet) so bubble tracks the head ───────
     if (screenPosRef) {
       // _worldPos holds the feet/root world pos; offset up by scaled head height
       _headPos.copy(group.position).addScaledVector(_UP, CAM_SCALE * HEAD_NORM_Y);
