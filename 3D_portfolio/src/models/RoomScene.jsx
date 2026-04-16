@@ -6,11 +6,11 @@ import FakeOSDesktop from "../components/FakeOSDesktop";
 import GitHubStats from "../components/GitHubStats";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Screen node names as they appear in timeshot-room2.glb
+// Screen node names as they appear in timeshot-original-version.glb
 // ─────────────────────────────────────────────────────────────────────────────
 const SCREEN_MAP = {
-  "large_monitor_screen": "fakeOS",
-  "small_monitor_screen": "github",
+  "wall tv":   "fakeOS",
+  "monitor":   "github",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -24,8 +24,8 @@ const SCREEN_MAP = {
 // value ends up being ~7–8× smaller on screen than raw Three.js world units.
 // Tune until content fills the physical monitor frame when at the preset view.
 const SCREEN_W = {
-  fakeOS: 17.0,   // large monitor — +70% from 10.0; tune until fills frame
-  github: 12.0,   // small monitor — +70% from 7.0
+  fakeOS: 1190,   // large monitor — 70× previous value; dial back if too large
+  github:  840,   // small monitor
 };
 const SCREEN_ASPECT = {
   fakeOS: 16 / 9,
@@ -53,7 +53,7 @@ const _quat = new THREE.Quaternion();
 const _bbox = new THREE.Box3();
 
 export default function RoomScene() {
-  const { scene } = useGLTF("/models/timeshot-room2.glb");
+  const { scene } = useGLTF("/models/timeshot-original-version.glb");
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
   const [screenData, setScreenData] = useState([]);
@@ -147,4 +147,4 @@ export default function RoomScene() {
   );
 }
 
-useGLTF.preload("/models/timeshot-room2.glb");
+useGLTF.preload("/models/timeshot-original-version.glb");
