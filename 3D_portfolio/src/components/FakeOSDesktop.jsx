@@ -15,7 +15,7 @@ const PROJECTS = [
     title: "CampusLearn",
     description: "Secure, role-based academic platform for students, tutors, lecturers, and admins. Features course management, assignment grading, and an AI tutor powered by Gemini — all on a fully serverless Google Cloud stack with real-time Firestore sync.",
     stack: ["Next.js", "TypeScript", "Firebase", "Genkit", "Gemini", "Cypress", "Tailwind"],
-    images: [],  // add: ["/screenshots/campuslearn-1.png", "/screenshots/campuslearn-2.png"]
+    images: ["/screenshots/campuslearn-1.png", "/screenshots/campuslearn-2.png", "/screenshots/campuslearn-3.png", "/screenshots/campuslearn-4.png"],
     github: "https://github.com/Timeshot0311/CampusLearn",
     live: "#",
     color: "#0891b2",
@@ -25,7 +25,7 @@ const PROJECTS = [
     title: "ScholarAI",
     description: "GenAI personal tutor using Socratic dialogue, multi-modal inputs (text, voice, documents), adaptive quiz generation, and personalized coaching based on performance history. Built with Gemini via Genkit for context-aware sessions.",
     stack: ["Next.js 15", "TypeScript", "Genkit", "Gemini", "Zustand", "Firebase"],
-    images: [],  // add: ["/screenshots/scholarai-1.png", "/screenshots/scholarai-2.png"]
+    images: [],  // drop ScholarAI shots into /public/screenshots/ as scholarai-1.png etc.
     github: "https://github.com/Timeshot0311/ScholarAI",
     live: "#",
     color: "#059669",
