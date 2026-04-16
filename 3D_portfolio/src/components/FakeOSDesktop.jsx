@@ -25,7 +25,7 @@ const PROJECTS = [
     title: "ScholarAI",
     description: "GenAI personal tutor using Socratic dialogue, multi-modal inputs (text, voice, documents), adaptive quiz generation, and personalized coaching based on performance history. Built with Gemini via Genkit for context-aware sessions.",
     stack: ["Next.js 15", "TypeScript", "Genkit", "Gemini", "Zustand", "Firebase"],
-    images: [],  // drop ScholarAI shots into /public/screenshots/ as scholarai-1.png etc.
+    images: ["/screenshots/scholarai-1.svg", "/screenshots/scholarai-2.svg", "/screenshots/scholarai-3.svg"],
     github: "https://github.com/Timeshot0311/ScholarAI",
     live: "#",
     color: "#059669",
