@@ -271,7 +271,7 @@ function Desktop({ onOpenFolder }) {
       {/* icons */}
       <div style={{ flex: 1, padding: 14, display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start", position: "relative" }}>
         <DesktopIcon icon="🗂️" label="My Projects" onClick={onOpenFolder} />
-        <DesktopIcon icon="📄" label="Resume.pdf" onClick={() => {}} />
+        <DesktopIcon icon="📄" label="Resume.pdf" onClick={() => window.open('/Suhil_Jugroop_CV.pdf', '_blank')} />
         <DesktopIcon icon="📬" label="Contact" onClick={() => {}} />
       </div>
 
