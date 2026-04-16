@@ -8,6 +8,16 @@ import { useState, useRef, useEffect } from 'react';
 const FONT = '"Segoe UI", system-ui, sans-serif';
 const MONO = '"Cascadia Code", "Fira Code", monospace';
 
+// Strip emoji and kaomoji so TTS doesn't read out symbol names
+const cleanForTTS = (text) =>
+  text
+    .replace(/[\u{1F000}-\u{1FAFF}]/gu, '')   // standard emoji (flags, faces, etc.)
+    .replace(/[\u{2600}-\u{27BF}]/gu, '')      // misc symbols & dingbats
+    .replace(/[（(][^a-zA-Z\s]{1,12}[）)]/g, '') // (kaomoji) e.g. (＞﹏＜) (◕‿◕)
+    .replace(/[～♪♫♡❤★☆✿◕✓✗＊]/g, '')       // stray decorative chars
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const C = {
   bg:      'rgba(10,10,20,0.88)',
   border:  'rgba(124,58,237,0.5)',
@@ -177,7 +187,7 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
         return;
       }
       setBubble(INTRO_LINES[idx]);
-      speak(INTRO_LINES[idx], () => {
+      speak(cleanForTTS(INTRO_LINES[idx]), () => {
         setTimeout(() => runIntro(idx + 1), 400);
       });
     };
@@ -241,12 +251,12 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
       historyRef.current = [...historyRef.current, { role: 'assistant', content: reply }];
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
       setBubble(reply);
-      speak(reply);
+      speak(cleanForTTS(reply));
     } catch {
       const reply = FALLBACK_LINES[Math.floor(Math.random() * FALLBACK_LINES.length)];
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
       setBubble(reply);
-      speak(reply);
+      speak(cleanForTTS(reply));
     } finally {
       setLoading(false);
     }

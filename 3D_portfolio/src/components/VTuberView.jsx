@@ -109,11 +109,19 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
           h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
         }
 
+        // Stiffen spring bones so hair doesn't explode when model teleports
+        // to its viewport position. High dragForce damps oscillations quickly.
+        vrm.springBoneManager?.joints?.forEach((joint) => {
+          if (joint.stiffness  !== undefined) joint.stiffness  = Math.max(joint.stiffness,  6);
+          if (joint.dragForce  !== undefined) joint.dragForce  = Math.max(joint.dragForce,  0.8);
+          if (joint.gravityPower !== undefined) joint.gravityPower = Math.min(joint.gravityPower, 0.2);
+        });
+
         // Mark reset as pending — useFrame fires it on the very first frame
         // where group.updateMatrixWorld() has already run (correct world pos)
         springResetRef.current = 0;
       },
-      (xhr) => console.info(`[VTuber] loading ${xhr.total > 0 ? Math.round(xhr.loaded / xhr.total * 100) + '%' : Math.round(xhr.loaded / 1024) + ' KB'}`),
+      undefined, // suppress per-chunk progress logs
       (err) => console.error('[VTuber] load failed:', err?.message ?? err),
     );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
