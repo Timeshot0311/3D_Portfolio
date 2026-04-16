@@ -12,16 +12,43 @@ const C = {
   green:   "#3fb950",
   purple:  "#bc8cff",
   orange:  "#d29922",
+  pink:    "#f778ba",
 };
 const MONO = '"Cascadia Code","Fira Code",monospace';
 const FONT = '"Segoe UI",system-ui,sans-serif';
 
-// Language colours (subset)
 const LANG_COLORS = {
   JavaScript: "#f1e05a", TypeScript: "#3178c6", Python: "#3572A5",
   "C#": "#178600", HTML: "#e34c26", CSS: "#563d7c",
   Rust: "#dea584", Go: "#00ADD8", Java: "#b07219",
 };
+
+// ── EDIT YOUR FEATURED PROJECTS HERE ─────────────────────────────────────────
+// Fill in: name, description, tech stack, repo link, and a highlight colour.
+const FEATURED_PROJECTS = [
+  {
+    name: "PRJ",
+    desc: "Add a short description of what PRJ does and the problem it solves.",
+    tech: ["React", "Node.js"],         // list the tech stack tags you want shown
+    url:  `https://github.com/${USERNAME}/PRJ`,   // update repo name if different
+    color: "#58a6ff",
+  },
+  {
+    name: "CampusLearn",
+    desc: "Add a short description of CampusLearn and the problem it solves.",
+    tech: ["React", "Python"],
+    url:  `https://github.com/${USERNAME}/CampusLearn`,
+    color: "#3fb950",
+  },
+  {
+    name: "ScholarAI",
+    desc: "Add a short description of ScholarAI and the problem it solves.",
+    tech: ["TypeScript", "AI/ML"],
+    url:  `https://github.com/${USERNAME}/ScholarAI`,
+    color: "#bc8cff",
+  },
+];
+// ─────────────────────────────────────────────────────────────────────────────
 
 function StatBox({ label, value }) {
   return (
@@ -41,7 +68,6 @@ function LangBar({ langs }) {
   const sorted = Object.entries(langs).sort((a, b) => b[1] - a[1]).slice(0, 6);
   return (
     <div>
-      {/* bar */}
       <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
         {sorted.map(([lang, bytes]) => (
           <div key={lang} style={{
@@ -50,7 +76,6 @@ function LangBar({ langs }) {
           }} />
         ))}
       </div>
-      {/* legend */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
         {sorted.map(([lang, bytes]) => (
           <div key={lang} style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -66,69 +91,10 @@ function LangBar({ langs }) {
   );
 }
 
-export default function GitHubStats() {
-  const [user,  setUser]  = useState(null);
-  const [repos, setRepos] = useState([]);
-  const [langs, setLangs] = useState({});
-  const [err,   setErr]   = useState(false);
-
-  useEffect(() => {
-    const base = `https://api.github.com/users/${USERNAME}`;
-
-    Promise.all([
-      fetch(base).then((r) => r.json()),
-      fetch(`${base}/repos?sort=stars&per_page=6`).then((r) => r.json()),
-    ])
-      .then(([u, r]) => {
-        setUser(u);
-        const validRepos = Array.isArray(r) ? r : [];
-        setRepos(validRepos);
-
-        // Aggregate languages from top repos
-        const langCounts = {};
-        const langFetches = validRepos.slice(0, 4).map((repo) =>
-          fetch(repo.languages_url)
-            .then((res) => res.json())
-            .then((data) => {
-              Object.entries(data).forEach(([l, b]) => {
-                langCounts[l] = (langCounts[l] ?? 0) + b;
-              });
-            })
-            .catch(() => {}),
-        );
-        Promise.all(langFetches).then(() => setLangs({ ...langCounts }));
-      })
-      .catch(() => setErr(true));
-  }, []);
-
-  if (err) {
-    return (
-      <div style={{ width: "100%", height: "100%", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 11, fontFamily: FONT }}>
-        Could not load GitHub stats
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div style={{ width: "100%", height: "100%", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: C.muted, fontSize: 11, fontFamily: MONO }}>
-          <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⟳</span>
-          {" "}Loading stats…
-        </div>
-      </div>
-    );
-  }
-
-  const topRepos = repos.slice(0, 3);
-
+// ── Page 1: Profile ──────────────────────────────────────────────────────────
+function ProfilePage({ user, repos }) {
   return (
-    <div style={{
-      width: "100%", height: "100%", background: C.bg,
-      display: "flex", flexDirection: "column",
-      fontFamily: FONT, color: C.text, overflow: "hidden",
-    }}>
-      {/* Header */}
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{
         padding: "10px 12px", borderBottom: `1px solid ${C.border}`,
         display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
@@ -157,11 +123,10 @@ export default function GitHubStats() {
             textDecoration: "none", background: C.surface, flexShrink: 0,
           }}
         >
-          View Profile ↗
+          View ↗
         </a>
       </div>
 
-      {/* Stats row */}
       <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <StatBox label="Repos"     value={user.public_repos} />
         <StatBox label="Followers" value={user.followers} />
@@ -174,51 +139,226 @@ export default function GitHubStats() {
         </div>
       </div>
 
-      {/* Top repos */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
-        <div style={{ color: C.muted, fontSize: 9, fontFamily: MONO, marginBottom: 2 }}>
-          ★ top repositories
+      <div style={{ flex: 1, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8, overflowY: "auto" }}>
+        <div style={{ color: C.muted, fontSize: 9, fontFamily: MONO }}>// about me</div>
+        <div style={{ color: C.text, fontSize: 10, lineHeight: 1.7 }}>
+          Full-stack developer building immersive, AI-powered web experiences.
+          Passionate about 3D interfaces, real-time systems, and creative UX.
         </div>
-        {topRepos.map((repo) => (
-          <a
-            key={repo.id}
-            href={repo.html_url}
-            target="_blank" rel="noreferrer"
-            style={{
-              display: "flex", flexDirection: "column", gap: 3,
-              padding: "7px 10px", borderRadius: 6, textDecoration: "none",
-              background: C.surface, border: `1px solid ${C.border}`,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accent; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ color: C.accent, fontSize: 11, fontWeight: 600, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {repo.name}
-              </span>
-              <span style={{ color: C.orange, fontSize: 9, fontFamily: MONO }}>⭐ {repo.stargazers_count}</span>
-              {repo.language && (
-                <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: LANG_COLORS[repo.language] ?? C.muted, display: "inline-block" }} />
-                  <span style={{ color: C.muted }}>{repo.language}</span>
-                </span>
-              )}
-            </div>
-            {repo.description && (
-              <div style={{ color: C.muted, fontSize: 9, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                {repo.description}
-              </div>
-            )}
-          </a>
-        ))}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+          {["React", "Three.js", "Node.js", "TypeScript", "Python", "AI/ML"].map((t) => (
+            <span key={t} style={{
+              padding: "2px 8px", borderRadius: 12, fontSize: 9,
+              background: "rgba(88,166,255,0.1)", border: `1px solid rgba(88,166,255,0.25)`,
+              color: C.accent, fontFamily: MONO,
+            }}>{t}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* Language breakdown */}
-        {Object.keys(langs).length > 0 && (
-          <div style={{ marginTop: 4, padding: "8px 10px", borderRadius: 6, background: C.surface, border: `1px solid ${C.border}` }}>
-            <div style={{ color: C.muted, fontSize: 9, fontFamily: MONO, marginBottom: 6 }}>languages</div>
-            <LangBar langs={langs} />
+// ── Page 2: Featured Projects ────────────────────────────────────────────────
+function ProjectsPage() {
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ color: C.muted, fontSize: 9, fontFamily: MONO, marginBottom: 2 }}>// featured projects</div>
+      {FEATURED_PROJECTS.map((p) => (
+        <a
+          key={p.name}
+          href={p.url}
+          target="_blank" rel="noreferrer"
+          style={{
+            display: "flex", flexDirection: "column", gap: 6,
+            padding: "10px 12px", borderRadius: 8, textDecoration: "none",
+            background: C.surface, border: `1px solid ${C.border}`,
+            transition: "border-color 0.15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = p.color; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+            <span style={{ color: p.color, fontSize: 12, fontWeight: 700, fontFamily: MONO, flex: 1 }}>
+              {p.name}
+            </span>
+            <span style={{ color: C.muted, fontSize: 9 }}>↗</span>
           </div>
-        )}
+          <div style={{ color: C.muted, fontSize: 9, lineHeight: 1.6, paddingLeft: 14 }}>
+            {p.desc}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, paddingLeft: 14 }}>
+            {p.tech.map((t) => (
+              <span key={t} style={{
+                padding: "1px 6px", borderRadius: 10, fontSize: 8,
+                background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`,
+                color: C.muted, fontFamily: MONO,
+              }}>{t}</span>
+            ))}
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+// ── Page 3: Languages ────────────────────────────────────────────────────────
+function LangsPage({ langs, repos }) {
+  const topRepos = [...repos].sort((a, b) => (b.stargazers_count ?? 0) - (a.stargazers_count ?? 0)).slice(0, 4);
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ color: C.muted, fontSize: 9, fontFamily: MONO }}>// languages & activity</div>
+      {Object.keys(langs).length > 0 ? (
+        <div style={{ padding: "10px 12px", borderRadius: 8, background: C.surface, border: `1px solid ${C.border}` }}>
+          <div style={{ color: C.muted, fontSize: 9, fontFamily: MONO, marginBottom: 8 }}>language breakdown</div>
+          <LangBar langs={langs} />
+        </div>
+      ) : (
+        <div style={{ color: C.muted, fontSize: 9, fontFamily: MONO }}>Loading languages…</div>
+      )}
+
+      <div style={{ color: C.muted, fontSize: 9, fontFamily: MONO, marginTop: 4 }}>top starred repos</div>
+      {topRepos.map((repo) => (
+        <a
+          key={repo.id}
+          href={repo.html_url}
+          target="_blank" rel="noreferrer"
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "6px 10px", borderRadius: 6, textDecoration: "none",
+            background: C.surface, border: `1px solid ${C.border}`,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accent; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
+        >
+          <span style={{ color: C.accent, fontSize: 10, fontFamily: MONO, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {repo.name}
+          </span>
+          {repo.language && (
+            <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9, flexShrink: 0 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: LANG_COLORS[repo.language] ?? C.muted, display: "inline-block" }} />
+              <span style={{ color: C.muted }}>{repo.language}</span>
+            </span>
+          )}
+          <span style={{ color: C.orange, fontSize: 9, fontFamily: MONO, flexShrink: 0 }}>⭐ {repo.stargazers_count}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+// ── Arrow nav ────────────────────────────────────────────────────────────────
+const PAGES = ["Profile", "Projects", "Activity"];
+
+function NavArrow({ dir, onClick, disabled }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        background: "none", border: `1px solid ${disabled ? "transparent" : C.border}`,
+        borderRadius: 4, color: disabled ? "transparent" : C.muted,
+        cursor: disabled ? "default" : "pointer",
+        padding: "2px 7px", fontSize: 12, fontFamily: MONO,
+        transition: "all 0.15s",
+      }}
+      onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; } }}
+      onMouseLeave={(e) => { if (!disabled) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; } }}
+    >
+      {dir === "left" ? "←" : "→"}
+    </button>
+  );
+}
+
+// ── Root component ───────────────────────────────────────────────────────────
+export default function GitHubStats() {
+  const [user,  setUser]  = useState(null);
+  const [repos, setRepos] = useState([]);
+  const [langs, setLangs] = useState({});
+  const [err,   setErr]   = useState(false);
+  const [page,  setPage]  = useState(0);
+
+  useEffect(() => {
+    const base = `https://api.github.com/users/${USERNAME}`;
+    Promise.all([
+      fetch(base).then((r) => r.json()),
+      fetch(`${base}/repos?sort=updated&per_page=30`).then((r) => r.json()),
+    ])
+      .then(([u, r]) => {
+        setUser(u);
+        const validRepos = Array.isArray(r) ? r : [];
+        setRepos(validRepos);
+        const langCounts = {};
+        const langFetches = validRepos.slice(0, 6).map((repo) =>
+          fetch(repo.languages_url)
+            .then((res) => res.json())
+            .then((data) => {
+              Object.entries(data).forEach(([l, b]) => {
+                langCounts[l] = (langCounts[l] ?? 0) + b;
+              });
+            })
+            .catch(() => {}),
+        );
+        Promise.all(langFetches).then(() => setLangs({ ...langCounts }));
+      })
+      .catch(() => setErr(true));
+  }, []);
+
+  if (err) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 11, fontFamily: FONT }}>
+        Could not load GitHub stats
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: C.muted, fontSize: 11, fontFamily: MONO }}>
+          <span style={{ display: "inline-block" }}>⟳</span>{" "}Loading…
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      width: "100%", height: "100%", background: C.bg,
+      display: "flex", flexDirection: "column",
+      fontFamily: FONT, color: C.text, overflow: "hidden",
+    }}>
+      {/* Page content */}
+      {page === 0 && <ProfilePage  user={user} repos={repos} />}
+      {page === 1 && <ProjectsPage />}
+      {page === 2 && <LangsPage    langs={langs} repos={repos} />}
+
+      {/* Nav bar */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "6px 12px", borderTop: `1px solid ${C.border}`,
+        background: C.surface, flexShrink: 0,
+      }}>
+        <NavArrow dir="left"  onClick={() => setPage((p) => p - 1)} disabled={page === 0} />
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {PAGES.map((label, i) => (
+            <button
+              key={label}
+              onClick={() => setPage(i)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                padding: "2px 0", fontSize: 9, fontFamily: MONO,
+                color: i === page ? C.accent : C.muted,
+                borderBottom: `1px solid ${i === page ? C.accent : "transparent"}`,
+                transition: "all 0.15s",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <NavArrow dir="right" onClick={() => setPage((p) => p + 1)} disabled={page === PAGES.length - 1} />
       </div>
     </div>
   );

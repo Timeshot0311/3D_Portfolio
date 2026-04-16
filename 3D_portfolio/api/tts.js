@@ -2,7 +2,7 @@
 // Set ELEVENLABS_API_KEY in Vercel environment variables.
 // Free tier: 10,000 characters/month at console.elevenlabs.io
 
-const VOICE_ID  = 'vGQNBgLaiM3EdZtxIiuY'; // Aerisita
+const VOICE_ID  = 'nEYxeXWO3O26xIMBsJ2O'; // Peni
 const MAX_CHARS = 500;
 
 // Models to try in order — eleven_multilingual_v2 is available on all tiers
