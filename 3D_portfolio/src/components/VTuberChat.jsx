@@ -129,7 +129,7 @@ export default function VTuberChat({ onSpeakingChange }) {
       position: 'fixed',
       bottom: 16,
       left: 16,
-      zIndex: 200,
+      zIndex: 10000,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'flex-start',

@@ -127,6 +127,7 @@ export default function RoomScene() {
         <Html
           key={id}
           transform
+          zIndexRange={[10, 0]}
           position={center}
           rotation={euler}
           scale={pixelScale}
