@@ -118,7 +118,7 @@ export default function VTuberView({ isSpeaking = false }) {
         h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0,  0.1);
         h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0, -0.1);
       },
-      (xhr) => console.info(`[VTuber] loading ${Math.round(xhr.loaded / xhr.total * 100)}%`),
+      (xhr) => console.info(`[VTuber] loading ${xhr.total > 0 ? Math.round(xhr.loaded / xhr.total * 100) + '%' : Math.round(xhr.loaded / 1024) + ' KB'}`),
       (err) => console.error('[VTuber] load failed:', err?.message ?? err),
     );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
