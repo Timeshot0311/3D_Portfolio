@@ -17,6 +17,9 @@ const FLOAT_AMP  = { x: 0.008, y: 0.012 };
 // Reusable objects — never reallocated inside useFrame
 const _worldPos  = new THREE.Vector3();
 const _mouseWS   = new THREE.Vector3();
+const _euler     = new THREE.Euler();
+const _qYaw      = new THREE.Quaternion();
+const _UP        = new THREE.Vector3(0, 1, 0);
 const PHONEMES   = ['aa', 'ih', 'ou', 'ee', 'oh'];
 
 export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }) {
@@ -73,19 +76,36 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
           return;
         }
         VRMUtils.combineSkeletons?.(vrm.scene);
+        // Remove double-sided rendering — improves performance & fixes some skeleton artifacts
+        VRMUtils.removeUnnecessaryVertices?.(vrm.scene);
+        VRMUtils.removeUnnecessaryJoints?.(vrm.scene);
 
         vrmRef.current = vrm;
         group.add(vrm.scene);
         onReady?.();   // signal to VTuberChat that the model is in the scene
 
-        // Idle arm pose — VRM1 normalized space: negative Z rotates left arm DOWN
-        const h = vrm.humanoid;
-        h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0, -1.2);
-        h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0,  1.2);
-        h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0, -0.2);
-        h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0,  0.2);
-        h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0, -0.1);
-        h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
+        // Play any animations embedded in the VRM/GLTF file
+        if (gltf.animations?.length > 0) {
+          const mixer = new THREE.AnimationMixer(vrm.scene);
+          gltf.animations.forEach((clip) => {
+            // Retarget clip bone tracks from GLTF names → VRM raw bone names
+            const retargeted = THREE.AnimationClip.findByName(gltf.animations, clip.name) ?? clip;
+            mixer.clipAction(retargeted).play();
+          });
+          mixerRef.current = mixer;
+          console.info(`[VTuber] playing ${gltf.animations.length} embedded animation(s)`);
+        }
+
+        // Fallback idle arm pose used when no embedded animations exist
+        if (!mixerRef.current) {
+          const h = vrm.humanoid;
+          h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0, -1.2);
+          h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0,  1.2);
+          h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0, -0.2);
+          h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0,  0.2);
+          h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0, -0.1);
+          h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
+        }
       },
       (xhr) => console.info(`[VTuber] loading ${xhr.total > 0 ? Math.round(xhr.loaded / xhr.total * 100) + '%' : Math.round(xhr.loaded / 1024) + ' KB'}`),
       (err) => console.error('[VTuber] load failed:', err?.message ?? err),
@@ -117,7 +137,12 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
       .applyMatrix4(camera.matrixWorld);
 
     group.position.copy(_worldPos);
-    group.quaternion.copy(camera.quaternion);
+    // Yaw-only rotation: strip pitch & roll so she stays world-upright
+    _euler.setFromQuaternion(camera.quaternion, 'YXZ');
+    _euler.x = 0;
+    _euler.z = 0;
+    _qYaw.setFromEuler(_euler);
+    group.quaternion.copy(_qYaw);
 
     // ── 2b. Write screen position so bubble can follow (project after use) ──
     if (screenPosRef) {
@@ -172,8 +197,8 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
       }
     }
 
-    // ── 6. Idle breathing ──────────────────────────────────────────────────
-    if (vrm?.humanoid) {
+    // ── 6. Idle breathing — skip if AnimationMixer is driving bones ───────
+    if (vrm?.humanoid && !mixerRef.current) {
       const t       = state.clock.elapsedTime;
       const breathe = Math.sin(t * 0.9) * 0.025;
       const h       = vrm.humanoid;
@@ -185,8 +210,9 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
       h.getNormalizedBoneNode('spine')?.rotation.set(breathe * 0.5, 0, 0);
     }
 
-    if (vrm) vrm.update(delta);
+    // Advance AnimationMixer (if embedded animations exist) BEFORE vrm.update
     if (mixerRef.current) mixerRef.current.update(delta);
+    if (vrm) vrm.update(delta);
   });
 
   // Scene-based — R3F manages this group in the scene graph.
