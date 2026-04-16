@@ -137,7 +137,7 @@ function useSpeech(onSpeakingChange) {
   return { speak, cancel };
 }
 
-export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open, onToggle, controlRef }) {
+export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open, onToggle, controlRef, screenPosRef }) {
   const [internalOpen, setInternalOpen] = useState(false);
   // Support both controlled (open prop) and uncontrolled modes
   const isOpen   = open !== undefined ? open : internalOpen;
@@ -149,6 +149,7 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
 
   const historyRef    = useRef([]);
   const inputRef      = useRef(null);
+  const bubbleDivRef  = useRef(null);   // for RAF-driven screen-space positioning
   const introRef      = useRef(false); // prevent double-run in strict mode
   const { speak, cancel } = useSpeech(onSpeakingChange ?? (() => {}));
   const { toggle: toggleMic, listening } = useMic((text) => {
@@ -202,6 +203,25 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
   }, [isOpen]);
 
+  // RAF loop: pin bubble DOM element to VTuber's projected screen position
+  useEffect(() => {
+    if (!screenPosRef) return;
+    let raf;
+    const BUBBLE_Y_OFFSET = -115; // px above VTuber center (clears the head)
+    const update = () => {
+      if (bubbleDivRef.current) {
+        const { x, y } = screenPosRef.current ?? {};
+        if (x != null) {
+          bubbleDivRef.current.style.left = `${x}px`;
+          bubbleDivRef.current.style.top  = `${y + BUBBLE_Y_OFFSET}px`;
+        }
+      }
+      raf = requestAnimationFrame(update);
+    };
+    raf = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(raf);
+  }, [screenPosRef]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const sendText = async (text) => {
     if (!text || loading) return;
     setLoading(true);
@@ -253,15 +273,20 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
 
   return (
     <>
-      {/* ── Speech bubble — fixed top-left, attached to VTuber ── */}
-      <div style={{
-        position: 'fixed',
-        top: 90,
-        left: 16,
-        zIndex: 10000,
-        pointerEvents: 'none',
-        fontFamily: FONT,
-      }}>
+      {/* ── Speech bubble — tracks VTuber via RAF (screenPosRef) ── */}
+      <div
+        ref={bubbleDivRef}
+        style={{
+          position: 'fixed',
+          // Initial position — RAF overwrites left/top every frame when screenPosRef is set
+          top: 90,
+          left: 120,
+          transform: 'translateX(-50%)', // horizontally centre over VTuber
+          zIndex: 10000,
+          pointerEvents: 'none',
+          fontFamily: FONT,
+        }}
+      >
         <div
           onClick={handleToggle}
           style={{
@@ -279,19 +304,20 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
             pointerEvents: 'auto',
             boxShadow: '3px 3px 0px #333',
             userSelect: 'none',
+            whiteSpace: 'nowrap',
           }}
         >
           {bubble}
-          {/* Tail pointing down-left toward VTuber */}
+          {/* Tail pointing straight down toward the VTuber below */}
           <div style={{
-            position: 'absolute', bottom: -13, left: 18,
+            position: 'absolute', bottom: -13, left: '50%', transform: 'translateX(-50%)',
             width: 0, height: 0,
             borderLeft: '7px solid transparent',
             borderRight: '7px solid transparent',
             borderTop: '13px solid #333',
           }} />
           <div style={{
-            position: 'absolute', bottom: -9, left: 20,
+            position: 'absolute', bottom: -9, left: '50%', transform: 'translateX(-50%)',
             width: 0, height: 0,
             borderLeft: '5px solid transparent',
             borderRight: '5px solid transparent',

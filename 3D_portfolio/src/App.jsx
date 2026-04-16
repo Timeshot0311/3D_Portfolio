@@ -35,6 +35,8 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   // Ref exposed by VTuberChat so CameraHUD mic button calls toggleMic directly
   const vtChatControlRef = useRef({ toggleMic: () => {}, isListening: false });
+  // VTuberView writes projected screen {x,y} here every frame; VTuberChat RAFs the bubble to it
+  const vtuberScreenPosRef = useRef({ x: 120, y: 200 });
 
   // Preload VRM with VRMLoaderPlugin before the scene opens so "Enter"
   // only unlocks when the model is actually ready to display.
@@ -74,7 +76,7 @@ export default function App() {
         {sceneVisible && (
           <Suspense fallback={null}>
             <RoomScene />
-            <VTuberView isSpeaking={isSpeaking} onReady={() => setVtuberReady(true)} />
+            <VTuberView isSpeaking={isSpeaking} onReady={() => setVtuberReady(true)} screenPosRef={vtuberScreenPosRef} />
           </Suspense>
         )}
 
@@ -119,6 +121,7 @@ export default function App() {
           open={chatOpen}
           onToggle={() => setChatOpen((o) => !o)}
           controlRef={vtChatControlRef}
+          screenPosRef={vtuberScreenPosRef}
         />
       )}
     </>

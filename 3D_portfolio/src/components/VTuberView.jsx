@@ -19,7 +19,7 @@ const _worldPos  = new THREE.Vector3();
 const _mouseWS   = new THREE.Vector3();
 const PHONEMES   = ['aa', 'ih', 'ou', 'ee', 'oh'];
 
-export default function VTuberView({ isSpeaking = false, onReady }) {
+export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }) {
   const groupRef = useRef(new THREE.Group());
   const vrmRef   = useRef(null);
   const mixerRef = useRef(null);
@@ -118,6 +118,15 @@ export default function VTuberView({ isSpeaking = false, onReady }) {
 
     group.position.copy(_worldPos);
     group.quaternion.copy(camera.quaternion);
+
+    // ── 2b. Write screen position so bubble can follow (project after use) ──
+    if (screenPosRef) {
+      _worldPos.project(camera); // mutates _worldPos to NDC — safe, we're done with it
+      screenPosRef.current = {
+        x: (_worldPos.x + 1) / 2 * window.innerWidth,
+        y: (1 - _worldPos.y) / 2 * window.innerHeight,
+      };
+    }
 
     // ── 3. Head look-at mouse ──────────────────────────────────────────────
     if (vrm?.lookAt) {
