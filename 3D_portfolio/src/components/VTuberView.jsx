@@ -11,6 +11,7 @@
 import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
 
@@ -62,13 +63,21 @@ export default function VTuberView({ isSpeaking = false }) {
     const group = groupRef.current;
     group.scale.setScalar(CAM_SCALE);
 
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+
     const loader = new GLTFLoader();
+    loader.setDRACOLoader(dracoLoader);
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
     loader.load(
       '/models/VTuber3.vrm',
       (gltf) => {
         const vrm = gltf.userData.vrm;
+        if (!vrm) {
+          console.error('[VTuber] File loaded but VRM data missing — not a valid VRM file?');
+          return;
+        }
         VRMUtils.combineSkeletons?.(vrm.scene);
 
         // VRM0 faces -Z by default; rotateVRM0 flips it to +Z (toward viewer
@@ -109,8 +118,8 @@ export default function VTuberView({ isSpeaking = false }) {
         h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0,  0.1);
         h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0, -0.1);
       },
-      undefined,
-      (err) => console.error('VTuber load failed:', err),
+      (xhr) => console.info(`[VTuber] loading ${Math.round(xhr.loaded / xhr.total * 100)}%`),
+      (err) => console.error('[VTuber] load failed:', err?.message ?? err),
     );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

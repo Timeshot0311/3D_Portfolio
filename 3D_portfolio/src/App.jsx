@@ -1,7 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { Suspense, useState, useRef } from 'react';
 import { useProgress, useGLTF } from '@react-three/drei';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import RoomScene from './models/RoomScene';
 import VTuberView from './components/VTuberView';
 import * as THREE from 'three';
@@ -48,8 +47,8 @@ export default function App() {
         style={{ background: '#111' }}
         gl={{
           outputColorSpace: THREE.SRGBColorSpace,
-          toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 0.4,
+          toneMapping: THREE.LinearToneMapping,
+          toneMappingExposure: 1.0,
         }}
       >
         <ambientLight intensity={1.5} />
@@ -60,12 +59,6 @@ export default function App() {
             <RoomScene />
             <VTuberView isSpeaking={isSpeaking} />
           </Suspense>
-        )}
-
-        {sceneVisible && (
-          <EffectComposer>
-            <Bloom intensity={1.5} luminanceThreshold={0.6} luminanceSmoothing={0.9} />
-          </EffectComposer>
         )}
 
         {sceneVisible && (

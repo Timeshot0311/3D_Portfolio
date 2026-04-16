@@ -6,11 +6,11 @@ import FakeOSDesktop from "../components/FakeOSDesktop";
 import GitHubStats from "../components/GitHubStats";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Screen node names as they appear in timeshot-original-version.glb
+// Screen node names as they appear in timeshot-room2.glb
 // ─────────────────────────────────────────────────────────────────────────────
 const SCREEN_MAP = {
-  "wall tv":   "fakeOS",
-  "monitor":   "github",
+  "large_monitor_screen": "fakeOS",
+  "small_monitor_screen": "github",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ const _quat = new THREE.Quaternion();
 const _bbox = new THREE.Box3();
 
 export default function RoomScene() {
-  const { scene } = useGLTF("/models/timeshot-original-version.glb");
+  const { scene } = useGLTF("/models/timeshot-room2.glb");
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
   const [screenData, setScreenData] = useState([]);
@@ -147,4 +147,4 @@ export default function RoomScene() {
   );
 }
 
-useGLTF.preload("/models/timeshot-original-version.glb");
+useGLTF.preload("/models/timeshot-room2.glb");
