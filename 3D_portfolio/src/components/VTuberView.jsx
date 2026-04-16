@@ -77,13 +77,7 @@ export default function VTuberView({ isSpeaking = false }) {
         vrmRef.current = vrm;
         group.add(vrm.scene);
 
-        if (gltf.animations?.length > 0) {
-          const mixer = new THREE.AnimationMixer(vrm.scene);
-          gltf.animations.forEach((clip) => mixer.clipAction(clip).play());
-          mixerRef.current = mixer;
-        }
-
-        // Idle arm pose
+        // Idle arm pose — do NOT autoplay embedded clips; they override bone rotations
         const h = vrm.humanoid;
         h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2);
         h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2);
