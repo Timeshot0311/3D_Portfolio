@@ -25,25 +25,42 @@ const FALLBACK_LINES = [
   "I'm Yuki! Timeshot built me with React & Three.js (⌒‿⌒)",
 ];
 
+// Intro sequence spoken on first load
+const INTRO_LINES = [
+  "Hi there! I'm Yuki, welcome to Suhil's portfolio!",
+  "This is an interactive 3D room — use the camera buttons at the top to explore different angles.",
+  "The large monitor on the left is a portfolio desktop, and the smaller one shows live GitHub stats.",
+  "Feel free to chat with me anytime — I know everything about Suhil's work!",
+];
+const IDLE_BUBBLE = "Hi! I'm Yuki~ click to chat! (◕‿◕)✿";
+
+function pickVoice() {
+  const voices = window.speechSynthesis?.getVoices() ?? [];
+  // Prefer natural-sounding female English voices
+  const preferred = voices.find((v) =>
+    /jenny|aria|zira|samantha|victoria|fiona|google uk english female|karen|moira/i.test(v.name),
+  );
+  if (preferred) return preferred;
+  return voices.find((v) => /female|woman|girl/i.test(v.name))
+    ?? voices.find((v) => v.lang?.startsWith('en'))
+    ?? null;
+}
+
 function useSpeech(onSpeakingChange) {
   const utterRef = useRef(null);
 
-  const speak = (text) => {
-    if (!window.speechSynthesis) return;
+  const speak = (text, onEnd) => {
+    if (!window.speechSynthesis) { onEnd?.(); return; }
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
-    utter.rate  = 1.05;
-    utter.pitch = 1.25;
-    utter.volume = 0.9;
-    // Try to pick a female voice
-    const voices = window.speechSynthesis.getVoices();
-    const female = voices.find((v) =>
-      /female|woman|girl|zira|samantha|victoria|fiona/i.test(v.name),
-    );
-    if (female) utter.voice = female;
+    utter.rate   = 0.92;   // slightly slower — more natural
+    utter.pitch  = 1.2;    // soft, feminine
+    utter.volume = 0.95;
+    const voice = pickVoice();
+    if (voice) utter.voice = voice;
     utter.onstart = () => onSpeakingChange(true);
-    utter.onend   = () => onSpeakingChange(false);
-    utter.onerror = () => onSpeakingChange(false);
+    utter.onend   = () => { onSpeakingChange(false); onEnd?.(); };
+    utter.onerror = () => { onSpeakingChange(false); onEnd?.(); };
     utterRef.current = utter;
     window.speechSynthesis.speak(utter);
   };
@@ -61,11 +78,45 @@ export default function VTuberChat({ onSpeakingChange }) {
   const [input,    setInput]    = useState('');
   const [messages, setMessages] = useState([]);   // { role, content }
   const [loading,  setLoading]  = useState(false);
-  const [bubble,   setBubble]   = useState("Hi! I'm Yuki~ click to chat! (◕‿◕)✿");
+  const [bubble,   setBubble]   = useState(INTRO_LINES[0]);
 
-  const historyRef = useRef([]); // Claude API message history
-  const inputRef   = useRef(null);
+  const historyRef    = useRef([]);
+  const inputRef      = useRef(null);
+  const introRef      = useRef(false); // prevent double-run in strict mode
   const { speak, cancel } = useSpeech(onSpeakingChange ?? (() => {}));
+
+  // Intro sequence — plays once on mount after voices are ready
+  useEffect(() => {
+    if (introRef.current) return;
+    introRef.current = true;
+
+    let cancelled = false;
+
+    const runIntro = (lines, idx = 0) => {
+      if (cancelled || idx >= lines.length) {
+        if (!cancelled) setBubble(IDLE_BUBBLE);
+        return;
+      }
+      setBubble(lines[idx]);
+      speak(lines[idx], () => {
+        // Short pause between lines
+        setTimeout(() => runIntro(lines, idx + 1), 400);
+      });
+    };
+
+    // Wait 2 s for scene + voices to settle, then start
+    const timer = setTimeout(() => {
+      // Voices may not be loaded yet — wait for voiceschanged if empty
+      const start = () => runIntro(INTRO_LINES);
+      if (window.speechSynthesis?.getVoices().length > 0) {
+        start();
+      } else {
+        window.speechSynthesis?.addEventListener('voiceschanged', start, { once: true });
+      }
+    }, 2000);
+
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-focus input when opened
   useEffect(() => {
