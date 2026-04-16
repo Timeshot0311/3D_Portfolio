@@ -39,7 +39,7 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
   const blinkVal     = useRef(0);
   const phonemeIdx      = useRef(0);
   const phonemeTimer    = useRef(0);
-  const springResetRef  = useRef(0); // counts frames after VRM load before spring-bone reset
+  const springResetRef  = useRef(-1); // -1 = no VRM yet; 0 = pending reset; 1 = done
 
   // Keep isSpeaking in a ref so useFrame sees latest value without re-mount
   const isSpeakingRef = useRef(isSpeaking);
@@ -109,7 +109,8 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
           h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
         }
 
-        // Reset spring-bone counter — useFrame will call reset after 3 positioned frames
+        // Mark reset as pending — useFrame fires it on the very first frame
+        // where group.updateMatrixWorld() has already run (correct world pos)
         springResetRef.current = 0;
       },
       (xhr) => console.info(`[VTuber] loading ${xhr.total > 0 ? Math.round(xhr.loaded / xhr.total * 100) + '%' : Math.round(xhr.loaded / 1024) + ' KB'}`),
@@ -149,13 +150,15 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
     _qYaw.setFromEuler(_euler);
     group.quaternion.copy(_qYaw);
 
-    // ── 2b. Spring-bone reset — fires once after 3 frames at correct position ─
-    if (vrm?.springBoneManager && springResetRef.current < 3) {
-      springResetRef.current += 1;
-      if (springResetRef.current === 3) {
-        vrm.scene.updateWorldMatrix(true, true);
-        vrm.springBoneManager.reset();
-      }
+    // CRITICAL: propagate position/rotation to matrixWorld NOW, before vrm.update.
+    // Inside useFrame, Three.js hasn't yet run its render-loop matrix update, so
+    // spring bones would read last frame's stale world matrices without this call.
+    group.updateMatrixWorld();
+
+    // ── 2b. Spring-bone reset — fires once on frame 1 after VRM loads ─────────
+    if (vrm?.springBoneManager && springResetRef.current === 0) {
+      vrm.springBoneManager.reset();
+      springResetRef.current = 1;
     }
 
     // ── 2c. Project head position (not feet) so bubble tracks the head ───────
