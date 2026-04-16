@@ -243,45 +243,69 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
   return (
     <div style={{
       position: 'fixed',
-      bottom: 16,
-      left: 16,
+      bottom: 70,           // above the camera-button bar
+      left: '50%',
+      transform: 'translateX(-58%)',  // nudge left to sit over the VTuber
       zIndex: 10000,
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       gap: 6,
       fontFamily: FONT,
       pointerEvents: 'none',
     }}>
-      {/* Speech bubble (always visible) */}
+      {/* Comic speech bubble */}
       <div
         onClick={toggleOpen}
         style={{
+          position: 'relative',
           maxWidth: 220,
-          padding: '7px 12px',
-          borderRadius: '12px 12px 12px 4px',
-          background: C.bg,
-          border: `1px solid ${C.border}`,
-          color: C.text,
-          fontSize: 11,
+          padding: '8px 13px',
+          borderRadius: '16px',
+          background: 'rgba(255,255,255,0.95)',
+          border: '2.5px solid #333',
+          color: '#111',
+          fontSize: 12,
+          fontWeight: 600,
           lineHeight: 1.5,
           cursor: 'pointer',
           pointerEvents: 'auto',
-          backdropFilter: 'blur(8px)',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          boxShadow: '3px 3px 0px #333',
           userSelect: 'none',
+          textAlign: 'center',
         }}
       >
         {bubble}
-        <div style={{ color: C.accent, fontSize: 9, marginTop: 3, fontFamily: MONO }}>
+        <div style={{ color: '#7c3aed', fontSize: 9, marginTop: 3, fontFamily: MONO, fontWeight: 400 }}>
           {open ? '▾ close chat' : '▸ click to chat'}
         </div>
+        {/* Comic tail pointing down toward VTuber */}
+        <div style={{
+          position: 'absolute',
+          bottom: -14,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 0, height: 0,
+          borderLeft: '8px solid transparent',
+          borderRight: '8px solid transparent',
+          borderTop: '14px solid #333',
+        }} />
+        <div style={{
+          position: 'absolute',
+          bottom: -10,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 0, height: 0,
+          borderLeft: '6px solid transparent',
+          borderRight: '6px solid transparent',
+          borderTop: '11px solid rgba(255,255,255,0.95)',
+        }} />
       </div>
 
-      {/* Chat window */}
+      {/* Chat window — appears above the bubble */}
       {open && (
         <div style={{
-          width: 260,
+          width: 280,
           background: C.bg,
           border: `1px solid ${C.border}`,
           borderRadius: 12,
@@ -291,6 +315,7 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
           pointerEvents: 'auto',
           display: 'flex',
           flexDirection: 'column',
+          order: -1,  // renders above the speech bubble in flex column
         }}>
           {/* Header */}
           <div style={{

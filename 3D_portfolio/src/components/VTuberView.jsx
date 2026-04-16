@@ -9,9 +9,10 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
 
-// Camera-local offset: left (-X), down (-Y), forward (-Z)
-const CAM_OFFSET = new THREE.Vector3(-0.52, -0.44, -1.1);
-const CAM_SCALE  = 0.21;
+// Camera-local offset: slightly left of center (-X), bottom (-Y), forward (-Z)
+// Positioned to sit just left of the camera preset buttons at bottom-center
+const CAM_OFFSET = new THREE.Vector3(-0.18, -0.52, -1.1);
+const CAM_SCALE  = 0.24;
 const FLOAT_AMP  = { x: 0.008, y: 0.012 };
 
 // Reusable objects — never reallocated inside useFrame
@@ -78,14 +79,14 @@ export default function VTuberView({ isSpeaking = false, onReady }) {
         group.add(vrm.scene);
         onReady?.();   // signal to VTuberChat that the model is in the scene
 
-        // Idle arm pose — do NOT autoplay embedded clips; they override bone rotations
+        // Idle arm pose — VRM1 normalized space: negative Z rotates left arm DOWN
         const h = vrm.humanoid;
-        h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2);
-        h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2);
-        h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0,  0.2);
-        h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0, -0.2);
-        h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0,  0.1);
-        h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0, -0.1);
+        h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0, -1.2);
+        h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0,  1.2);
+        h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0, -0.2);
+        h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0,  0.2);
+        h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0, -0.1);
+        h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
       },
       (xhr) => console.info(`[VTuber] loading ${xhr.total > 0 ? Math.round(xhr.loaded / xhr.total * 100) + '%' : Math.round(xhr.loaded / 1024) + ' KB'}`),
       (err) => console.error('[VTuber] load failed:', err?.message ?? err),
@@ -168,10 +169,10 @@ export default function VTuberView({ isSpeaking = false, onReady }) {
       const t       = state.clock.elapsedTime;
       const breathe = Math.sin(t * 0.9) * 0.025;
       const h       = vrm.humanoid;
-      h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2 + breathe * 0.3);
-      h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2 - breathe * 0.3);
-      h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0,  0.2);
-      h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0, -0.2);
+      h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0, -1.2 - breathe * 0.3);
+      h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0,  1.2 + breathe * 0.3);
+      h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0, -0.2);
+      h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0,  0.2);
       h.getNormalizedBoneNode('chest')?.rotation.set(breathe, 0, 0);
       h.getNormalizedBoneNode('spine')?.rotation.set(breathe * 0.5, 0, 0);
     }

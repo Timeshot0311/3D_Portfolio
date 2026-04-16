@@ -1,6 +1,8 @@
 import { Canvas } from '@react-three/fiber';
-import { Suspense, useState, useRef } from 'react';
+import { Suspense, useState, useRef, useEffect } from 'react';
 import { useProgress, useGLTF } from '@react-three/drei';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 import RoomScene from './models/RoomScene';
 import VTuberView from './components/VTuberView';
 import * as THREE from 'three';
@@ -25,8 +27,17 @@ export default function App() {
   const plcLockRef = useRef(null); // set by FreeCameraControls, called by CameraHUD
 
   // isSpeaking is set by VTuberChat TTS callbacks and forwarded to VTuberView for lip sync
-  const [isSpeaking,   setIsSpeaking]   = useState(false);
-  const [vtuberReady,  setVtuberReady]  = useState(false);
+  const [isSpeaking,    setIsSpeaking]    = useState(false);
+  const [vtuberReady,   setVtuberReady]   = useState(false);
+  const [vrmPreloaded,  setVrmPreloaded]  = useState(false);
+
+  // Preload VRM with VRMLoaderPlugin before the scene opens so "Enter"
+  // only unlocks when the model is actually ready to display.
+  useEffect(() => {
+    const loader = new GLTFLoader();
+    loader.register((parser) => new VRMLoaderPlugin(parser));
+    loader.load('/models/VTuber3.vrm', () => setVrmPreloaded(true), undefined, () => setVrmPreloaded(true));
+  }, []);
 
   const handleEnter = () => {
     const loaderEl = document.getElementById('loading-overlay');
@@ -40,7 +51,7 @@ export default function App() {
 
   return (
     <>
-      {showLoader && <Loader progress={progress} onEnter={handleEnter} />}
+      {showLoader && <Loader progress={progress} vrmPreloaded={vrmPreloaded} onEnter={handleEnter} />}
       {playMusic && <BackgroundMusic />}
 
       <Canvas

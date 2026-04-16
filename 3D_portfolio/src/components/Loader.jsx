@@ -1,7 +1,8 @@
 import './loader.css';
 
-export default function Loader({ progress, onEnter }) {
-  const isComplete = progress >= 100;
+export default function Loader({ progress, vrmPreloaded, onEnter }) {
+  const isComplete = progress >= 100 && vrmPreloaded;
+  const pct = Math.min(Math.round(progress), 100);
 
   return (
     <div id="loading-overlay">
@@ -16,10 +17,12 @@ export default function Loader({ progress, onEnter }) {
             <div className="progress-bar">
               <div
                 className="progress-fill"
-                style={{ width: `${progress}%` }}
+                style={{ width: `${pct}%` }}
               />
             </div>
-            
+            <div style={{ color: '#a78bfa', fontSize: 12, marginTop: 8, fontFamily: 'system-ui' }}>
+              {pct < 100 ? `Loading… ${pct}%` : 'Finishing up…'}
+            </div>
           </>
         ) : (
           <button className="enter-btn" onClick={onEnter}>

@@ -5,7 +5,7 @@
 // Voice: Rachel (21m00Tcm4TlvDq8ikWAM) — calm, warm, natural female.
 // Model: eleven_turbo_v2 — low latency, great quality.
 
-const VOICE_ID  = '21m00Tcm4TlvDq8ikWAM'; // Rachel
+const VOICE_ID  = 'vGQNBgLaiM3EdZtxIiuY'; // Aerisita
 const MODEL_ID  = 'eleven_turbo_v2';
 const MAX_CHARS = 500; // guard against runaway requests
 
