@@ -66,7 +66,7 @@ export default function VTuberView({ isSpeaking = false }) {
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
     loader.load(
-      '/models/VTuber2.vrm',
+      '/models/VTuber3.vrm',
       (gltf) => {
         const vrm = gltf.userData.vrm;
         VRMUtils.combineSkeletons?.(vrm.scene);

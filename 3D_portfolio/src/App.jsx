@@ -12,7 +12,7 @@ import CameraHUD from './components/CameraHUD';
 import MobileHUD from './components/MobileHUD';
 import VTuberChat from './components/VTuberChat';
 
-useGLTF.preload('/models/VTuber2.vrm');
+useGLTF.preload('/models/VTuber3.vrm');
 
 export default function App() {
   const { progress } = useProgress();

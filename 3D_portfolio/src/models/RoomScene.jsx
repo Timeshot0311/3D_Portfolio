@@ -24,8 +24,8 @@ const SCREEN_MAP = {
 // value ends up being ~7–8× smaller on screen than raw Three.js world units.
 // Tune until content fills the physical monitor frame when at the preset view.
 const SCREEN_W = {
-  fakeOS: 10.0,   // large monitor — increase if content still too small
-  github:  7.0,   // small monitor
+  fakeOS: 17.0,   // large monitor — +70% from 10.0; tune until fills frame
+  github: 12.0,   // small monitor — +70% from 7.0
 };
 const SCREEN_ASPECT = {
   fakeOS: 16 / 9,
