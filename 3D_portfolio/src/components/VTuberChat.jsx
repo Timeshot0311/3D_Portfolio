@@ -25,30 +25,112 @@ const FALLBACK_LINES = [
   "I'm Yuki! Timeshot built me with React & Three.js (⌒‿⌒)",
 ];
 
-function useSpeech(onSpeakingChange) {
-  const utterRef = useRef(null);
+// Intro sequence spoken on first load
+const INTRO_LINES = [
+  "Hi there! I'm Yuki, welcome to Suhil's portfolio!",
+  "This is an interactive 3D room — use the camera buttons at the top to explore different angles.",
+  "The large monitor on the left is a portfolio desktop, and the smaller one shows live GitHub stats.",
+  "Feel free to chat with me anytime — I know everything about Suhil's work!",
+];
+const IDLE_BUBBLE = "Hi! I'm Yuki~ click to chat! (◕‿◕)✿";
 
-  const speak = (text) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate  = 1.05;
-    utter.pitch = 1.25;
-    utter.volume = 0.9;
-    // Try to pick a female voice
-    const voices = window.speechSynthesis.getVoices();
-    const female = voices.find((v) =>
-      /female|woman|girl|zira|samantha|victoria|fiona/i.test(v.name),
-    );
-    if (female) utter.voice = female;
-    utter.onstart = () => onSpeakingChange(true);
-    utter.onend   = () => onSpeakingChange(false);
-    utter.onerror = () => onSpeakingChange(false);
-    utterRef.current = utter;
-    window.speechSynthesis.speak(utter);
+function useMic(onTranscript) {
+  const [listening, setListening] = useState(false);
+  const recogRef = useRef(null);
+
+  const toggle = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert('Speech recognition not supported in this browser.'); return; }
+
+    if (listening) {
+      recogRef.current?.stop();
+      setListening(false);
+      return;
+    }
+
+    const recog = new SR();
+    recog.lang = 'en-US';
+    recog.interimResults = false;
+    recog.maxAlternatives = 1;
+    recog.onresult = (e) => {
+      const text = e.results[0]?.[0]?.transcript;
+      if (text) onTranscript(text);
+    };
+    recog.onend   = () => setListening(false);
+    recog.onerror = () => setListening(false);
+    recogRef.current = recog;
+    recog.start();
+    setListening(true);
+  };
+
+  return { toggle, listening };
+}
+
+// Browser TTS fallback (used when ElevenLabs key is absent)
+function browserSpeak(text, onSpeakingChange, onEnd) {
+  if (!window.speechSynthesis) { onEnd?.(); return; }
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 0.92; utter.pitch = 1.2; utter.volume = 0.95;
+  const voices = window.speechSynthesis.getVoices();
+  const pick = voices.find((v) =>
+    /jenny|aria|zira|samantha|victoria|fiona|karen|moira|female|woman/i.test(v.name),
+  ) ?? voices.find((v) => v.lang?.startsWith('en')) ?? null;
+  if (pick) utter.voice = pick;
+  utter.onstart = () => onSpeakingChange(true);
+  utter.onend   = () => { onSpeakingChange(false); onEnd?.(); };
+  utter.onerror = () => { onSpeakingChange(false); onEnd?.(); };
+  window.speechSynthesis.speak(utter);
+}
+
+function useSpeech(onSpeakingChange) {
+  const audioRef = useRef(null);
+
+  const speak = async (text, onEnd) => {
+    // Stop any in-progress audio
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    window.speechSynthesis?.cancel();
+
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        console.warn('[TTS] ElevenLabs failed:', res.status, detail?.error ?? '');
+        throw new Error('ElevenLabs unavailable');
+      }
+
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+
+      onSpeakingChange(true);
+      audio.onended = () => {
+        onSpeakingChange(false);
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        onEnd?.();
+      };
+      audio.onerror = () => {
+        onSpeakingChange(false);
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        onEnd?.();
+      };
+      await audio.play();
+    } catch {
+      // Fall back to browser TTS (no key set, or network error)
+      browserSpeak(text, onSpeakingChange, onEnd);
+    }
   };
 
   const cancel = () => {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     window.speechSynthesis?.cancel();
     onSpeakingChange(false);
   };
@@ -56,39 +138,72 @@ function useSpeech(onSpeakingChange) {
   return { speak, cancel };
 }
 
-export default function VTuberChat({ onSpeakingChange }) {
+export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
   const [open,     setOpen]     = useState(false);
   const [input,    setInput]    = useState('');
   const [messages, setMessages] = useState([]);   // { role, content }
   const [loading,  setLoading]  = useState(false);
-  const [bubble,   setBubble]   = useState("Hi! I'm Yuki~ click to chat! (◕‿◕)✿");
+  const [bubble,   setBubble]   = useState(INTRO_LINES[0]);
 
-  const historyRef = useRef([]); // Claude API message history
-  const inputRef   = useRef(null);
+  const historyRef    = useRef([]);
+  const inputRef      = useRef(null);
+  const introRef      = useRef(false); // prevent double-run in strict mode
   const { speak, cancel } = useSpeech(onSpeakingChange ?? (() => {}));
+  const { toggle: toggleMic, listening } = useMic((text) => {
+    setInput(text);
+    // Auto-send after a short delay so user sees what was transcribed
+    setTimeout(() => {
+      setInput('');
+      const userMsg = { role: 'user', content: text };
+      historyRef.current = [...historyRef.current, userMsg];
+      setMessages((m) => [...m, { role: 'user', content: text }]);
+      sendText(text);
+    }, 600);
+  });
+
+  // Intro sequence — fires once when VTuber model is in the scene
+  useEffect(() => {
+    if (!vtuberReady || introRef.current) return;
+    introRef.current = true;
+
+    let cancelled = false;
+
+    const runIntro = (idx = 0) => {
+      if (cancelled || idx >= INTRO_LINES.length) {
+        if (!cancelled) setBubble(IDLE_BUBBLE);
+        return;
+      }
+      setBubble(INTRO_LINES[idx]);
+      speak(INTRO_LINES[idx], () => {
+        setTimeout(() => runIntro(idx + 1), 400);
+      });
+    };
+
+    // Give browser a tick to paint the VTuber before speaking
+    const start = () => runIntro(0);
+    if (window.speechSynthesis?.getVoices().length > 0) {
+      setTimeout(start, 300);
+    } else {
+      window.speechSynthesis?.addEventListener('voiceschanged', () => setTimeout(start, 300), { once: true });
+    }
+
+    return () => { cancelled = true; };
+  }, [vtuberReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-focus input when opened
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 50);
   }, [open]);
 
-  const send = async () => {
-    const text = input.trim();
+  const sendText = async (text) => {
     if (!text || loading) return;
-
-    setInput('');
-    const userMsg = { role: 'user', content: text };
-    historyRef.current = [...historyRef.current, userMsg];
-    setMessages((m) => [...m, { role: 'user', content: text }]);
     setLoading(true);
-
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: historyRef.current }),
       });
-
       let reply;
       if (res.ok) {
         const data = await res.json();
@@ -96,15 +211,10 @@ export default function VTuberChat({ onSpeakingChange }) {
       } else {
         reply = FALLBACK_LINES[Math.floor(Math.random() * FALLBACK_LINES.length)];
       }
-
-      historyRef.current = [
-        ...historyRef.current,
-        { role: 'assistant', content: reply },
-      ];
+      historyRef.current = [...historyRef.current, { role: 'assistant', content: reply }];
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
       setBubble(reply);
       speak(reply);
-
     } catch {
       const reply = FALLBACK_LINES[Math.floor(Math.random() * FALLBACK_LINES.length)];
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
@@ -113,6 +223,16 @@ export default function VTuberChat({ onSpeakingChange }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const send = () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    setInput('');
+    const userMsg = { role: 'user', content: text };
+    historyRef.current = [...historyRef.current, userMsg];
+    setMessages((m) => [...m, { role: 'user', content: text }]);
+    sendText(text);
   };
 
   const handleKey = (e) => {
@@ -127,45 +247,69 @@ export default function VTuberChat({ onSpeakingChange }) {
   return (
     <div style={{
       position: 'fixed',
-      bottom: 16,
-      left: 16,
-      zIndex: 200,
+      bottom: 70,           // above the camera-button bar
+      left: '50%',
+      transform: 'translateX(-58%)',  // nudge left to sit over the VTuber
+      zIndex: 10000,
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       gap: 6,
       fontFamily: FONT,
       pointerEvents: 'none',
     }}>
-      {/* Speech bubble (always visible) */}
+      {/* Comic speech bubble */}
       <div
         onClick={toggleOpen}
         style={{
+          position: 'relative',
           maxWidth: 220,
-          padding: '7px 12px',
-          borderRadius: '12px 12px 12px 4px',
-          background: C.bg,
-          border: `1px solid ${C.border}`,
-          color: C.text,
-          fontSize: 11,
+          padding: '8px 13px',
+          borderRadius: '16px',
+          background: 'rgba(255,255,255,0.95)',
+          border: '2.5px solid #333',
+          color: '#111',
+          fontSize: 12,
+          fontWeight: 600,
           lineHeight: 1.5,
           cursor: 'pointer',
           pointerEvents: 'auto',
-          backdropFilter: 'blur(8px)',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          boxShadow: '3px 3px 0px #333',
           userSelect: 'none',
+          textAlign: 'center',
         }}
       >
         {bubble}
-        <div style={{ color: C.accent, fontSize: 9, marginTop: 3, fontFamily: MONO }}>
+        <div style={{ color: '#7c3aed', fontSize: 9, marginTop: 3, fontFamily: MONO, fontWeight: 400 }}>
           {open ? '▾ close chat' : '▸ click to chat'}
         </div>
+        {/* Comic tail pointing down toward VTuber */}
+        <div style={{
+          position: 'absolute',
+          bottom: -14,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 0, height: 0,
+          borderLeft: '8px solid transparent',
+          borderRight: '8px solid transparent',
+          borderTop: '14px solid #333',
+        }} />
+        <div style={{
+          position: 'absolute',
+          bottom: -10,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 0, height: 0,
+          borderLeft: '6px solid transparent',
+          borderRight: '6px solid transparent',
+          borderTop: '11px solid rgba(255,255,255,0.95)',
+        }} />
       </div>
 
-      {/* Chat window */}
+      {/* Chat window — appears above the bubble */}
       {open && (
         <div style={{
-          width: 260,
+          width: 280,
           background: C.bg,
           border: `1px solid ${C.border}`,
           borderRadius: 12,
@@ -175,6 +319,7 @@ export default function VTuberChat({ onSpeakingChange }) {
           pointerEvents: 'auto',
           display: 'flex',
           flexDirection: 'column',
+          order: -1,  // renders above the speech bubble in flex column
         }}>
           {/* Header */}
           <div style={{
@@ -262,6 +407,22 @@ export default function VTuberChat({ onSpeakingChange }) {
                 outline: 'none',
               }}
             />
+            <button
+              onClick={toggleMic}
+              title={listening ? 'Stop listening' : 'Speak to Yuki'}
+              style={{
+                padding: '5px 8px',
+                borderRadius: 6,
+                background: listening ? 'rgba(239,68,68,0.35)' : 'rgba(124,58,237,0.2)',
+                border: `1px solid ${listening ? 'rgba(239,68,68,0.6)' : C.border}`,
+                color: listening ? '#f87171' : C.muted,
+                fontSize: 13,
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+            >
+              🎤
+            </button>
             <button
               onClick={send}
               disabled={loading || !input.trim()}

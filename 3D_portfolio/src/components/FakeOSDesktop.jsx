@@ -1,50 +1,66 @@
 import { useState, useEffect } from "react";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// YOUR PROJECTS — edit this array.
-// images: array of /public paths, e.g. ["/screenshots/proj.png"]
-// Leave images:[] for a placeholder card.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── ADD SCREENSHOTS: drop files into /public/screenshots/ and reference below ──
 const PROJECTS = [
   {
-    id: "portfolio-3d",
-    title: "3D Portfolio",
-    description: "An immersive room-scale 3D portfolio built with React Three Fiber. Features a VTuber desktop companion pinned to the camera, interactive monitor screens, first-person free-camera, and mobile touch controls.",
-    stack: ["React", "Three.js", "R3F", "VRM", "Vite", "Tailwind"],
-    images: [],
-    github: "https://github.com/Timeshot0311/3D_Portfolio",
+    id: "lexdesk",
+    title: "LexDesk ⚖️",
+    description: "Cloud-first PWA case management platform for legal practitioners. Centralises case files, financial tracking, automated PDF generation (invoices, pleadings), smart templates, an integrated calendar with .ics export, and secure team collaboration — with full offline persistence via Firestore.",
+    stack: ["Next.js 15", "Firebase", "Firestore", "Shadcn UI", "Tailwind", "jsPDF", "PWA"],
+    images: [],  // private internal tool — add screenshots here if available
+    github: "#",
     live: "#",
-    color: "#7c3aed",
+    color: "#c9a84c",
   },
   {
-    id: "project-2",
-    title: "Project Two",
-    description: "Replace with your real project description. Explain what it does, what problem it solves, and any interesting technical challenges.",
-    stack: ["TypeScript", "Node.js", "PostgreSQL"],
-    images: [],
-    github: "#",
+    id: "campuslearn",
+    title: "CampusLearn",
+    description: "Secure, role-based academic platform for students, tutors, lecturers, and admins. Features course management, assignment grading, and an AI tutor powered by Gemini — all on a fully serverless Google Cloud stack with real-time Firestore sync.",
+    stack: ["Next.js", "TypeScript", "Firebase", "Genkit", "Gemini", "Cypress", "Tailwind"],
+    images: ["/screenshots/campuslearn-1.png", "/screenshots/campuslearn-2.png", "/screenshots/campuslearn-3.png", "/screenshots/campuslearn-4.png"],
+    github: "https://github.com/Timeshot0311/CampusLearn",
     live: "#",
     color: "#0891b2",
   },
   {
-    id: "project-3",
-    title: "Project Three",
-    description: "Another standout project. Add your real description, stack, and links here.",
-    stack: ["Python", "FastAPI", "React"],
-    images: [],
-    github: "#",
+    id: "scholarai",
+    title: "ScholarAI",
+    description: "GenAI personal tutor using Socratic dialogue, multi-modal inputs (text, voice, documents), adaptive quiz generation, and personalised coaching based on performance history. Built with Gemini via Genkit for context-aware sessions.",
+    stack: ["Next.js 15", "TypeScript", "Genkit", "Gemini", "Zustand", "Firebase"],
+    images: ["/screenshots/scholarai-1.svg", "/screenshots/scholarai-2.svg", "/screenshots/scholarai-3.svg"],
+    github: "https://github.com/Timeshot0311/ScholarAI",
     live: "#",
     color: "#059669",
   },
   {
-    id: "project-4",
-    title: "Project Four",
-    description: "Yet another project. Add as many entries as you like to the PROJECTS array at the top of FakeOSDesktop.jsx.",
-    stack: ["Next.js", "Prisma", "Tailwind"],
-    images: [],
+    id: "edusphere",
+    title: "EduSphere Solutions",
+    description: "Production client website for an industrial relations consultancy. Fully responsive, SEO-optimised site with animated hero sections, service showcases, and contact flows — built and deployed for a real business.",
+    stack: ["Next.js", "Tailwind CSS", "Shadcn UI"],
+    images: [],  // add screenshots here, or drop them in /public/screenshots/edusphere-*.png
     github: "#",
+    live: "https://www.edu-sphere.co.za",
+    color: "#6366f1",
+  },
+  {
+    id: "invascan",
+    title: "Invascan",
+    description: "YOLO-based computer vision system (capstone) for detecting invasive plant species (Pyracantha) from images. Covers the full ML pipeline — dataset prep, model training, and evaluation using precision, recall, and mAP metrics.",
+    stack: ["Python", "Ultralytics YOLO", "Computer Vision", "Machine Learning"],
+    images: ["/screenshots/invascan-1.jpg", "/screenshots/invascan-2.jpg", "/screenshots/invascan-3.jpg", "/screenshots/invascan-4.jpg"],
+    github: "https://github.com/Timeshot0311/PRJ371PyracanthaGroup11",
     live: "#",
     color: "#d97706",
+  },
+  {
+    id: "portfolio-3d",
+    title: "3D Portfolio",
+    description: "Immersive room-scale 3D portfolio with a VTuber AI companion (ElevenLabs TTS + LLM), interactive monitor screens with a fake OS and GitHub stats, first-person free-camera, and mobile touch controls.",
+    stack: ["React", "Three.js", "R3F", "VRM", "Vite", "Tailwind", "Vercel"],
+    images: [],
+    github: "https://github.com/Timeshot0311/3D_Portfolio",
+    live: "#",
+    color: "#7c3aed",
   },
 ];
 
@@ -255,7 +271,7 @@ function Desktop({ onOpenFolder }) {
       {/* icons */}
       <div style={{ flex: 1, padding: 14, display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start", position: "relative" }}>
         <DesktopIcon icon="🗂️" label="My Projects" onClick={onOpenFolder} />
-        <DesktopIcon icon="📄" label="Resume.pdf" onClick={() => {}} />
+        <DesktopIcon icon="📄" label="Resume.pdf" onClick={() => window.open('/Suhil_Jugroop_CV.pdf', '_blank')} />
         <DesktopIcon icon="📬" label="Contact" onClick={() => {}} />
       </div>
 

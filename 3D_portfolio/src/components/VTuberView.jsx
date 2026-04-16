@@ -1,22 +1,18 @@
 // src/components/VTuberView.jsx
 // Scene-based VTuber companion pinned to the bottom-left viewport corner.
-//
-// Strategy: the group lives in R3F's scene graph (<primitive> return).
-// Every frame we compute the world-space position of the camera-local offset
-// and copy the camera's quaternion so the group stays locked to the viewport.
-//
-// VRM0 faces +Z in its local space (no rotateVRM0). When the group quaternion
-// matches the camera's quaternion, local +Z = camera local +Z = the direction
-// BEHIND the camera in world space — which is exactly toward the viewer. ✓
+// Supports VRM1 only. Every frame the group is positioned at a camera-local
+// offset and inherits the camera quaternion so it stays locked to the viewport.
 import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
 
-// Camera-local offset: left (-X), down (-Y), forward (-Z)
-const CAM_OFFSET = new THREE.Vector3(-0.52, -0.44, -1.1);
-const CAM_SCALE  = 0.21;
+// Camera-local offset: slightly left of center (-X), bottom (-Y), forward (-Z)
+// Positioned to sit just left of the camera preset buttons at bottom-center
+const CAM_OFFSET = new THREE.Vector3(-0.18, -0.52, -1.1);
+const CAM_SCALE  = 0.24;
 const FLOAT_AMP  = { x: 0.008, y: 0.012 };
 
 // Reusable objects — never reallocated inside useFrame
@@ -24,7 +20,7 @@ const _worldPos  = new THREE.Vector3();
 const _mouseWS   = new THREE.Vector3();
 const PHONEMES   = ['aa', 'ih', 'ou', 'ee', 'oh'];
 
-export default function VTuberView({ isSpeaking = false }) {
+export default function VTuberView({ isSpeaking = false, onReady }) {
   const groupRef = useRef(new THREE.Group());
   const vrmRef   = useRef(null);
   const mixerRef = useRef(null);
@@ -62,55 +58,38 @@ export default function VTuberView({ isSpeaking = false }) {
     const group = groupRef.current;
     group.scale.setScalar(CAM_SCALE);
 
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+
     const loader = new GLTFLoader();
+    loader.setDRACOLoader(dracoLoader);
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
     loader.load(
       '/models/VTuber3.vrm',
       (gltf) => {
         const vrm = gltf.userData.vrm;
+        if (!vrm) {
+          console.error('[VTuber] File loaded but VRM data missing — not a valid VRM file?');
+          return;
+        }
         VRMUtils.combineSkeletons?.(vrm.scene);
-
-        // VRM0 faces -Z by default; rotateVRM0 flips it to +Z (toward viewer
-        // in camera-relative mode). VRM1 already faces +Z — don't rotate it.
-        const isVRM0 = (vrm.meta?.metaVersion ?? vrm.meta?.specVersion ?? '0') === '0';
-        if (isVRM0) VRMUtils.rotateVRM0?.(vrm);
-
-        // Fix hair / clothing transparency sorting (common VRM0 artefact).
-        // Transparent meshes (hair, clothes) must render after opaque ones.
-        vrm.scene.traverse((obj) => {
-          if (!obj.isMesh) return;
-          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-          mats.forEach((mat) => {
-            if (mat?.transparent || mat?.alphaTest > 0) {
-              obj.renderOrder = 2;
-              if (mat.depthWrite === undefined || mat.depthWrite) {
-                mat.depthWrite = false; // prevent z-fighting between hair strands
-              }
-            }
-          });
-        });
 
         vrmRef.current = vrm;
         group.add(vrm.scene);
+        onReady?.();   // signal to VTuberChat that the model is in the scene
 
-        if (gltf.animations?.length > 0) {
-          const mixer = new THREE.AnimationMixer(vrm.scene);
-          gltf.animations.forEach((clip) => mixer.clipAction(clip).play());
-          mixerRef.current = mixer;
-        }
-
-        // Idle arm pose
+        // Idle arm pose — VRM1 normalized space: negative Z rotates left arm DOWN
         const h = vrm.humanoid;
-        h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2);
-        h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2);
-        h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0,  0.2);
-        h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0, -0.2);
-        h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0,  0.1);
-        h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0, -0.1);
+        h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0, -1.2);
+        h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0,  1.2);
+        h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0, -0.2);
+        h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0,  0.2);
+        h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0, -0.1);
+        h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
       },
-      undefined,
-      (err) => console.error('VTuber load failed:', err),
+      (xhr) => console.info(`[VTuber] loading ${xhr.total > 0 ? Math.round(xhr.loaded / xhr.total * 100) + '%' : Math.round(xhr.loaded / 1024) + ' KB'}`),
+      (err) => console.error('[VTuber] load failed:', err?.message ?? err),
     );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -190,10 +169,10 @@ export default function VTuberView({ isSpeaking = false }) {
       const t       = state.clock.elapsedTime;
       const breathe = Math.sin(t * 0.9) * 0.025;
       const h       = vrm.humanoid;
-      h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0,  1.2 + breathe * 0.3);
-      h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2 - breathe * 0.3);
-      h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0,  0.2);
-      h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0, -0.2);
+      h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0, -1.2 - breathe * 0.3);
+      h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0,  1.2 + breathe * 0.3);
+      h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0, -0.2);
+      h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0,  0.2);
       h.getNormalizedBoneNode('chest')?.rotation.set(breathe, 0, 0);
       h.getNormalizedBoneNode('spine')?.rotation.set(breathe * 0.5, 0, 0);
     }

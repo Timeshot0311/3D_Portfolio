@@ -1,72 +1,230 @@
-#loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: black;
-  z-index: 9999;
-  overflow: hidden;
+/* ── Cyberpunk Loading Screen ─────────────────────────────────────────────── */
+
+:root {
+  --cp-cyan:    #00d4ff;
+  --cp-pink:    #ff00aa;
+  --cp-purple:  #9b00ff;
+  --cp-dark:    #050a10;
+  --cp-surface: rgba(0, 20, 40, 0.88);
+  --cp-border:  rgba(0, 212, 255, 0.35);
+  --cp-glow:    0 0 12px rgba(0,212,255,0.6), 0 0 28px rgba(0,212,255,0.25);
 }
 
-#loader-bg {
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--cp-dark);
+  z-index: 99999;
+  overflow: hidden;
+  font-family: 'Courier New', 'Cascadia Code', monospace;
+}
+
+/* Canvas pixel rain sits behind everything */
+#cp-canvas {
   position: absolute;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: blur(2px) brightness(0.7);
-  z-index: -1;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.55;
+}
+
+/* Scanline overlay */
+#loading-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.18) 2px,
+    rgba(0,0,0,0.18) 4px
+  );
+  z-index: 1;
+  pointer-events: none;
 }
 
 .loader-content {
   position: absolute;
-  bottom: 10%;
-  width: 100%;
-  text-align: center;
-  color: white;
-  font-family: sans-serif;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  gap: 0;
+}
+
+/* ── Title ── */
+.cp-title {
+  font-size: clamp(2rem, 6vw, 4.5rem);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: #fff;
+  text-shadow:
+    0 0 8px  var(--cp-cyan),
+    0 0 24px rgba(0,212,255,0.5),
+    0 0 60px rgba(0,212,255,0.2);
+  animation: glitch 4s infinite;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.cp-subtitle {
+  font-size: clamp(0.65rem, 1.8vw, 1rem);
+  letter-spacing: 0.45em;
+  color: var(--cp-cyan);
+  opacity: 0.7;
+  margin-bottom: 52px;
+  text-transform: uppercase;
+}
+
+/* ── Progress bar ── */
+.progress-wrap {
+  width: min(420px, 72vw);
+  margin-bottom: 12px;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--cp-cyan);
+  margin-bottom: 6px;
+  opacity: 0.75;
+  text-transform: uppercase;
 }
 
 .progress-bar {
-  width: 60%;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.3);
-  margin: 0 auto;
-  border-radius: 4px;
-  overflow: hidden;
+  width: 100%;
+  height: 6px;
+  background: rgba(0,212,255,0.12);
+  border: 1px solid rgba(0,212,255,0.25);
+  border-radius: 0;
+  overflow: visible;
+  position: relative;
 }
 
 .progress-fill {
   height: 100%;
-  background: #61dafb;
-  transition: width 0.3s ease;
+  background: linear-gradient(90deg, var(--cp-purple), var(--cp-cyan));
+  box-shadow: var(--cp-glow);
+  transition: width 0.25s ease;
+  position: relative;
 }
 
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: -3px;
+  width: 4px;
+  height: 12px;
+  background: #fff;
+  box-shadow: 0 0 8px var(--cp-cyan), 0 0 16px var(--cp-cyan);
+  border-radius: 2px;
+  animation: blink 0.6s step-end infinite;
+}
+
+.progress-status {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: rgba(0,212,255,0.55);
+  margin-top: 8px;
+  text-align: right;
+  text-transform: uppercase;
+  animation: statusFade 0.5s ease;
+}
+
+/* ── Enter button ── */
 .enter-btn {
-  background: #61dafb;
-  color: #111;
-  font-size: 1.2rem;
-  border: none;
-  padding: 0.75rem 2rem;
-  border-radius: 5px;
+  margin-top: 40px;
+  padding: 14px 48px;
+  background: transparent;
+  color: var(--cp-cyan);
+  border: 2px solid var(--cp-cyan);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
   cursor: pointer;
-  margin-top: 20px;
-  transition: background 0.3s ease;
+  position: relative;
+  clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+  box-shadow: var(--cp-glow), inset 0 0 20px rgba(0,212,255,0.05);
+  transition: all 0.2s ease;
+  animation: entryPulse 2s ease-in-out infinite;
+}
+
+.enter-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--cp-cyan);
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
 .enter-btn:hover {
-  background: #4db3d7;
+  color: var(--cp-dark);
+  box-shadow: 0 0 24px var(--cp-cyan), 0 0 60px rgba(0,212,255,0.4);
+  text-shadow: none;
 }
 
-/* fade out animation */
-.fade-out {
-  animation: fadeOut 0.7s ease forwards;
+.enter-btn:hover::before { opacity: 1; }
+.enter-btn span { position: relative; z-index: 1; }
+
+/* Corner decorations */
+.cp-corner {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-color: var(--cp-cyan);
+  border-style: solid;
+  opacity: 0.45;
+}
+.cp-corner.tl { top: 20px; left: 20px; border-width: 2px 0 0 2px; }
+.cp-corner.tr { top: 20px; right: 20px; border-width: 2px 2px 0 0; }
+.cp-corner.bl { bottom: 20px; left: 20px; border-width: 0 0 2px 2px; }
+.cp-corner.br { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
+
+/* Horizontal rule lines */
+.cp-rule {
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cp-cyan), transparent);
+  opacity: 0.2;
+}
+.cp-rule.top    { top: 80px; }
+.cp-rule.bottom { bottom: 80px; }
+
+/* ── Animations ── */
+@keyframes glitch {
+  0%, 90%, 100% { transform: none; text-shadow: 0 0 8px var(--cp-cyan), 0 0 24px rgba(0,212,255,0.5); }
+  91% { transform: translate(-3px, 0) skewX(-2deg); text-shadow: -3px 0 var(--cp-pink), 3px 0 var(--cp-cyan); }
+  93% { transform: translate(3px, 0) skewX(2deg);  text-shadow:  3px 0 var(--cp-pink), -3px 0 var(--cp-cyan); }
+  95% { transform: none; }
+  96% { transform: translate(-1px, 0); text-shadow: 2px 0 var(--cp-purple); }
+  98% { transform: none; }
 }
 
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@keyframes entryPulse {
+  0%, 100% { box-shadow: var(--cp-glow), inset 0 0 20px rgba(0,212,255,0.05); }
+  50%       { box-shadow: 0 0 20px var(--cp-cyan), 0 0 50px rgba(0,212,255,0.35), inset 0 0 20px rgba(0,212,255,0.08); }
+}
+
+@keyframes statusFade {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Fade out */
+.fade-out { animation: fadeOut 0.7s ease forwards; }
 @keyframes fadeOut {
-  to {
-    opacity: 0;
-    pointer-events: none;
-  }
+  to { opacity: 0; pointer-events: none; }
 }
-

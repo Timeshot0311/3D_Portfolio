@@ -6,11 +6,11 @@ import FakeOSDesktop from "../components/FakeOSDesktop";
 import GitHubStats from "../components/GitHubStats";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Screen node names as they appear in timeshot-original-version.glb
+// Screen node names as they appear in timeshot-room2.glb
 // ─────────────────────────────────────────────────────────────────────────────
 const SCREEN_MAP = {
-  "wall tv":   "fakeOS",
-  "monitor":   "github",
+  "large_monitor_screen": "fakeOS",
+  "small_monitor_screen": "github",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -24,12 +24,12 @@ const SCREEN_MAP = {
 // value ends up being ~7–8× smaller on screen than raw Three.js world units.
 // Tune until content fills the physical monitor frame when at the preset view.
 const SCREEN_W = {
-  fakeOS: 1190,   // large monitor — 70× previous value; dial back if too large
-  github:  840,   // small monitor
+  fakeOS: 162,   // large monitor
+  github:  82,   // small monitor
 };
 const SCREEN_ASPECT = {
   fakeOS: 16 / 9,
-  github: 4 / 3,
+  github: 16 / 9,  // reduced from 4/3 to cut vertical height
 };
 
 // CSS pixel resolution — higher = crisper text (heavier GPU cost)
@@ -53,7 +53,7 @@ const _quat = new THREE.Quaternion();
 const _bbox = new THREE.Box3();
 
 export default function RoomScene() {
-  const { scene } = useGLTF("/models/timeshot-original-version.glb");
+  const { scene } = useGLTF("/models/timeshot-room2.glb");
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
   const [screenData, setScreenData] = useState([]);
@@ -127,6 +127,7 @@ export default function RoomScene() {
         <Html
           key={id}
           transform
+          zIndexRange={[10, 0]}
           position={center}
           rotation={euler}
           scale={pixelScale}
@@ -147,4 +148,4 @@ export default function RoomScene() {
   );
 }
 
-useGLTF.preload("/models/timeshot-original-version.glb");
+useGLTF.preload("/models/timeshot-room2.glb");

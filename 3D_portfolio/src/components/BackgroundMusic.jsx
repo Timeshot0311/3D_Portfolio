@@ -33,9 +33,9 @@ export default function BackgroundMusic() {
         onClick={toggleMute}
         style={{
           position: 'fixed',
-          bottom: '20px',
+          top: '20px',
           left: '20px',
-          zIndex: 9999,
+          zIndex: 10000,
           background: '#222',
           color: '#fff',
           border: 'none',
