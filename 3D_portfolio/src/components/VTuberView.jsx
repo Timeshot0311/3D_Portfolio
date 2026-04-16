@@ -1,13 +1,7 @@
 // src/components/VTuberView.jsx
 // Scene-based VTuber companion pinned to the bottom-left viewport corner.
-//
-// Strategy: the group lives in R3F's scene graph (<primitive> return).
-// Every frame we compute the world-space position of the camera-local offset
-// and copy the camera's quaternion so the group stays locked to the viewport.
-//
-// VRM0 faces +Z in its local space (no rotateVRM0). When the group quaternion
-// matches the camera's quaternion, local +Z = camera local +Z = the direction
-// BEHIND the camera in world space — which is exactly toward the viewer. ✓
+// Supports VRM1 only. Every frame the group is positioned at a camera-local
+// offset and inherits the camera quaternion so it stays locked to the viewport.
 import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
@@ -79,30 +73,6 @@ export default function VTuberView({ isSpeaking = false }) {
           return;
         }
         VRMUtils.combineSkeletons?.(vrm.scene);
-
-        // VRM0 faces -Z by default; rotateVRM0 flips it to +Z (toward viewer
-        // in camera-relative mode). VRM1 already faces +Z — don't rotate it.
-        const isVRM0 = (vrm.meta?.metaVersion ?? vrm.meta?.specVersion ?? '0') === '0';
-        console.info(`[VTuber] VRM${isVRM0 ? '0' : '1'} detected`);
-        if (isVRM0) VRMUtils.rotateVRM0?.(vrm);
-
-        // Hair / clothing transparency sorting fix — VRM0 only.
-        // MToon1 (VRM1) manages its own render order; applying depthWrite=false
-        // to its materials causes the entire model to render as a dark silhouette.
-        if (isVRM0) {
-          vrm.scene.traverse((obj) => {
-            if (!obj.isMesh) return;
-            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-            mats.forEach((mat) => {
-              if (mat?.transparent || mat?.alphaTest > 0) {
-                obj.renderOrder = 2;
-                if (mat.depthWrite === undefined || mat.depthWrite) {
-                  mat.depthWrite = false;
-                }
-              }
-            });
-          });
-        }
 
         vrmRef.current = vrm;
         group.add(vrm.scene);
