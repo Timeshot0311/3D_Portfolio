@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// YOUR PROJECTS — edit this array.
-// images: array of /public paths, e.g. ["/screenshots/proj.png"]
-// Leave images:[] for a placeholder card.
-// ─────────────────────────────────────────────────────────────────────────────
-// ── DROP YOUR SCREENSHOTS HERE ────────────────────────────────────────────────
-// Add image files to /public/screenshots/ then reference them below.
-// Example: images: ["/screenshots/campuslearn-1.png", "/screenshots/campuslearn-2.png"]
-// ─────────────────────────────────────────────────────────────────────────────
+// ── ADD SCREENSHOTS: drop files into /public/screenshots/ and reference below ──
 const PROJECTS = [
+  {
+    id: "lexdesk",
+    title: "LexDesk ⚖️",
+    description: "Cloud-first PWA case management platform for legal practitioners. Centralises case files, financial tracking, automated PDF generation (invoices, pleadings), smart templates, an integrated calendar with .ics export, and secure team collaboration — with full offline persistence via Firestore.",
+    stack: ["Next.js 15", "Firebase", "Firestore", "Shadcn UI", "Tailwind", "jsPDF", "PWA"],
+    images: [],  // private internal tool — add screenshots here if available
+    github: "#",
+    live: "#",
+    color: "#c9a84c",
+  },
   {
     id: "campuslearn",
     title: "CampusLearn",
@@ -23,7 +25,7 @@ const PROJECTS = [
   {
     id: "scholarai",
     title: "ScholarAI",
-    description: "GenAI personal tutor using Socratic dialogue, multi-modal inputs (text, voice, documents), adaptive quiz generation, and personalized coaching based on performance history. Built with Gemini via Genkit for context-aware sessions.",
+    description: "GenAI personal tutor using Socratic dialogue, multi-modal inputs (text, voice, documents), adaptive quiz generation, and personalised coaching based on performance history. Built with Gemini via Genkit for context-aware sessions.",
     stack: ["Next.js 15", "TypeScript", "Genkit", "Gemini", "Zustand", "Firebase"],
     images: ["/screenshots/scholarai-1.svg", "/screenshots/scholarai-2.svg", "/screenshots/scholarai-3.svg"],
     github: "https://github.com/Timeshot0311/ScholarAI",
@@ -31,12 +33,22 @@ const PROJECTS = [
     color: "#059669",
   },
   {
+    id: "edusphere",
+    title: "EduSphere Solutions",
+    description: "Production client website for an industrial relations consultancy. Fully responsive, SEO-optimised site with animated hero sections, service showcases, and contact flows — built and deployed for a real business.",
+    stack: ["Next.js", "Tailwind CSS", "Shadcn UI"],
+    images: [],  // add screenshots here, or drop them in /public/screenshots/edusphere-*.png
+    github: "#",
+    live: "https://www.edu-sphere.co.za",
+    color: "#6366f1",
+  },
+  {
     id: "invascan",
     title: "Invascan",
-    description: "YOLO-based computer vision system (capstone) for detecting invasive plant species from images. Covers the full ML pipeline — dataset prep, model training, and evaluation using precision, recall, and mAP metrics.",
+    description: "YOLO-based computer vision system (capstone) for detecting invasive plant species (Pyracantha) from images. Covers the full ML pipeline — dataset prep, model training, and evaluation using precision, recall, and mAP metrics.",
     stack: ["Python", "Ultralytics YOLO", "Computer Vision", "Machine Learning"],
-    images: [],
-    github: "https://github.com/Timeshot0311/Invascan",
+    images: ["/screenshots/invascan-1.jpg", "/screenshots/invascan-2.jpg", "/screenshots/invascan-3.jpg", "/screenshots/invascan-4.jpg"],
+    github: "https://github.com/Timeshot0311/PRJ371PyracanthaGroup11",
     live: "#",
     color: "#d97706",
   },

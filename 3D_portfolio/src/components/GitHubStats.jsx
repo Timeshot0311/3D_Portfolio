@@ -25,28 +25,27 @@ const LANG_COLORS = {
 
 // ── EDIT YOUR FEATURED PROJECTS HERE ─────────────────────────────────────────
 // Fill in: name, description, tech stack, repo link, and a highlight colour.
-// ── UPDATE REPO URLs IF DIFFERENT ─────────────────────────────────────────────
 const FEATURED_PROJECTS = [
   {
-    name: "PRJ",
-    desc: "← Fill this in: what does PRJ do? Update the URL below to the real repo name.",
-    tech: ["React", "Node.js"],
-    url:  `https://github.com/${USERNAME}/PRJ`,   // ← update repo name
-    color: "#58a6ff",
-  },
-  {
     name: "CampusLearn",
-    desc: "Role-based academic platform with AI tutoring powered by Gemini. Covers course management, grading, and real-time sync — built serverless on Google Cloud.",
+    desc: "Role-based academic platform with AI tutoring powered by Gemini. Course management, grading, and real-time sync — serverless on Google Cloud.",
     tech: ["Next.js", "TypeScript", "Firebase", "Genkit", "Gemini", "Tailwind"],
     url:  `https://github.com/${USERNAME}/CampusLearn`,
     color: "#3fb950",
   },
   {
     name: "ScholarAI",
-    desc: "GenAI personal tutor using Socratic dialogue, voice/doc inputs, adaptive quizzes, and performance-based coaching via Gemini and Genkit.",
+    desc: "GenAI personal tutor — Socratic dialogue, voice/doc inputs, adaptive quizzes, and performance-based coaching via Gemini and Genkit.",
     tech: ["Next.js 15", "TypeScript", "Genkit", "Gemini", "Firebase"],
     url:  `https://github.com/${USERNAME}/ScholarAI`,
     color: "#bc8cff",
+  },
+  {
+    name: "Invascan",
+    desc: "YOLO computer vision system detecting invasive plant species (Pyracantha) with full ML pipeline — training, evaluation, precision/recall/mAP.",
+    tech: ["Python", "Ultralytics YOLO", "Computer Vision"],
+    url:  `https://github.com/${USERNAME}/PRJ371PyracanthaGroup11`,
+    color: "#d29922",
   },
 ];
 // ─────────────────────────────────────────────────────────────────────────────
