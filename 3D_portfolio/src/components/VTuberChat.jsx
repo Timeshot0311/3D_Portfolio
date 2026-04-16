@@ -248,11 +248,12 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
     <div style={{
       position: 'fixed',
       bottom: 20,
-      left: 20,
+      left: '50%',
+      transform: 'translateX(-50%)',
       zIndex: 10000,
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       gap: 6,
       fontFamily: FONT,
       pointerEvents: 'none',
@@ -282,11 +283,12 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
         <div style={{ color: '#7c3aed', fontSize: 9, marginTop: 3, fontFamily: MONO, fontWeight: 400 }}>
           {open ? '▾ close chat' : '▸ click to chat'}
         </div>
-        {/* Comic tail pointing down-left toward VTuber */}
+        {/* Comic tail pointing down toward VTuber */}
         <div style={{
           position: 'absolute',
           bottom: -14,
-          left: 24,
+          left: '50%',
+          transform: 'translateX(-50%)',
           width: 0, height: 0,
           borderLeft: '8px solid transparent',
           borderRight: '8px solid transparent',
@@ -295,7 +297,8 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false }) {
         <div style={{
           position: 'absolute',
           bottom: -10,
-          left: 26,
+          left: '50%',
+          transform: 'translateX(-50%)',
           width: 0, height: 0,
           borderLeft: '6px solid transparent',
           borderRight: '6px solid transparent',
