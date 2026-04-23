@@ -145,7 +145,26 @@ function useSpeech(onSpeakingChange) {
   return { speak, cancel };
 }
 
-export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open, onToggle, controlRef, screenPosRef }) {
+// Keyword → emote map. First match wins; runs against the lowercased reply.
+// Keep these specific enough to avoid triggering on mentions ("I can't dance
+// today" shouldn't trigger a dance, but "dance" alone should).
+const EMOTE_PATTERNS = [
+  { emote: 'wave',  re: /\b(wave|hi there|hello there|hey there|waves)\b/i },
+  { emote: 'peace', re: /\b(peace|✌|peace sign)\b/i },
+  { emote: 'bow',   re: /\b(bow|thank you|thanks|arigato|gratitude)\b/i },
+  { emote: 'nod',   re: /\b(yes|yeah|agree|sure|of course|definitely|correct)\b/i },
+  { emote: 'shake', re: /\b(no|nope|disagree|wrong|incorrect|don.?t think)\b/i },
+  { emote: 'dance', re: /\b(dance|dancing|let.?s go|party|celebrate|woo)\b/i },
+];
+
+function pickEmote(text) {
+  for (const { emote, re } of EMOTE_PATTERNS) {
+    if (re.test(text)) return emote;
+  }
+  return null;
+}
+
+export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open, onToggle, controlRef, screenPosRef, emoteRef }) {
   const [internalOpen, setInternalOpen] = useState(false);
   // Support both controlled (open prop) and uncontrolled modes
   const isOpen   = open !== undefined ? open : internalOpen;
@@ -250,6 +269,9 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
       setBubble(reply);
       speak(cleanForTTS(reply));
+      // Fire an emote if the reply hints at one. Silently no-ops if the clip isn't loaded.
+      const emote = pickEmote(reply);
+      if (emote) emoteRef?.current?.play?.(emote);
     } catch {
       const reply = FALLBACK_LINES[Math.floor(Math.random() * FALLBACK_LINES.length)];
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
