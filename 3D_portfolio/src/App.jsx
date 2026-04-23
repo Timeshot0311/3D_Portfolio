@@ -37,6 +37,8 @@ export default function App() {
   const vtChatControlRef = useRef({ toggleMic: () => {}, isListening: false });
   // VTuberView writes projected screen {x,y} here every frame; VTuberChat RAFs the bubble to it
   const vtuberScreenPosRef = useRef({ x: 120, y: 200 });
+  // Emote API — VTuberView fills this in; VTuberChat calls emoteRef.current.play('wave') etc.
+  const emoteRef = useRef({ play: () => false, list: () => [] });
 
   // Preload VRM with VRMLoaderPlugin before the scene opens so "Enter"
   // only unlocks when the model is actually ready to display.
@@ -76,7 +78,7 @@ export default function App() {
         {sceneVisible && (
           <Suspense fallback={null}>
             <RoomScene />
-            <VTuberView isSpeaking={isSpeaking} onReady={() => setVtuberReady(true)} screenPosRef={vtuberScreenPosRef} />
+            <VTuberView isSpeaking={isSpeaking} onReady={() => setVtuberReady(true)} screenPosRef={vtuberScreenPosRef} emoteRef={emoteRef} />
           </Suspense>
         )}
 
@@ -122,6 +124,7 @@ export default function App() {
           onToggle={() => setChatOpen((o) => !o)}
           controlRef={vtChatControlRef}
           screenPosRef={vtuberScreenPosRef}
+          emoteRef={emoteRef}
         />
       )}
     </>

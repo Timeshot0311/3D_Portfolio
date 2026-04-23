@@ -7,62 +7,27 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from '@pixiv/three-vrm-animation';
 import * as THREE from 'three';
 
-// Full list of VRM humanoid bone names — used to build a raw→normalized
-// remap table so embedded GLTF animations survive vrm.update()
-const VRM_HUMAN_BONES = [
-  'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
-  'leftEye', 'rightEye', 'jaw',
-  'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand',
-  'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand',
-  'leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'leftToes',
-  'rightUpperLeg', 'rightLowerLeg', 'rightFoot', 'rightToes',
-  'leftThumbMetacarpal', 'leftThumbProximal', 'leftThumbDistal',
-  'leftIndexProximal', 'leftIndexIntermediate', 'leftIndexDistal',
-  'leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal',
-  'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal',
-  'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal',
-  'rightThumbMetacarpal', 'rightThumbProximal', 'rightThumbDistal',
-  'rightIndexProximal', 'rightIndexIntermediate', 'rightIndexDistal',
-  'rightMiddleProximal', 'rightMiddleIntermediate', 'rightMiddleDistal',
-  'rightRingProximal', 'rightRingIntermediate', 'rightRingDistal',
-  'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal',
-];
-
 /**
- * Retarget an embedded GLTF AnimationClip from the VRM's raw skeleton onto
- * its NORMALIZED humanoid skeleton. Without this, vrm.update() overwrites
- * the mixer's output every frame (normalized→raw sync is the source of
- * truth), so animations silently do nothing.
- *
- * The remap rewrites every track whose target is a humanoid bone so that
- * three's PropertyBinding resolves to the normalized node instead.
+ * Animation manifest — map emote name → public URL of a .vrma file.
+ * Any file that 404s or fails to parse is skipped silently so the
+ * VTuber still works if you haven't added all clips yet. Drop the
+ * files in `public/animations/`. `idle` is the default loop.
  */
-function retargetClipForVRM(clip, vrm) {
-  const rawToNormalized = {};
-  VRM_HUMAN_BONES.forEach((name) => {
-    const raw  = vrm.humanoid.getRawBoneNode?.(name);
-    const norm = vrm.humanoid.getNormalizedBoneNode?.(name);
-    if (raw && norm && raw.name && norm.name) {
-      rawToNormalized[raw.name] = norm.name;
-    }
-  });
-
-  const newTracks = clip.tracks.map((track) => {
-    const dot = track.name.indexOf('.');
-    if (dot < 0) return track;
-    const nodeName = track.name.slice(0, dot);
-    const property = track.name.slice(dot + 1);
-    const mapped   = rawToNormalized[nodeName];
-    if (!mapped) return track;
-    const clone = track.clone();
-    clone.name  = `${mapped}.${property}`;
-    return clone;
-  });
-
-  return new THREE.AnimationClip(clip.name, clip.duration, newTracks);
-}
+const VRMA_MANIFEST = {
+  idle:  '/animations/idle.vrma',
+  wave:  '/animations/wave.vrma',
+  peace: '/animations/peace.vrma',
+  bow:   '/animations/bow.vrma',
+  dance: '/animations/dance.vrma',
+  nod:   '/animations/nod.vrma',
+  shake: '/animations/shake.vrma',
+};
+const DEFAULT_EMOTE = 'idle';
+// How long to spend crossfading between emotes (seconds)
+const EMOTE_FADE = 0.3;
 
 // Camera-local offset: top-left of viewport
 const CAM_OFFSET = new THREE.Vector3(-0.52, 0.05, -1.1);
@@ -80,10 +45,12 @@ const PHONEMES   = ['aa', 'ih', 'ou', 'ee', 'oh'];
 // VRM models are ~1.6 normalised units tall; head is ~90% up the body
 const HEAD_NORM_Y = 1.45;
 
-export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }) {
-  const groupRef = useRef(new THREE.Group());
-  const vrmRef   = useRef(null);
-  const mixerRef = useRef(null);
+export default function VTuberView({ isSpeaking = false, onReady, screenPosRef, emoteRef }) {
+  const groupRef   = useRef(new THREE.Group());
+  const vrmRef     = useRef(null);
+  const mixerRef   = useRef(null);
+  const actionsRef = useRef({});          // { name: AnimationAction } keyed by manifest key
+  const currentEmoteRef = useRef(null);   // currently-playing action name
 
   const mouseRef     = useRef(new THREE.Vector2(0, 0));
   const floatOffset  = useRef(new THREE.Vector2(0, 0));
@@ -125,10 +92,12 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
     const loader = new GLTFLoader();
     loader.setDRACOLoader(dracoLoader);
     loader.register((parser) => new VRMLoaderPlugin(parser));
+    // Allows the same loader instance to also parse .vrma files below
+    loader.register((parser) => new VRMAnimationLoaderPlugin(parser));
 
     loader.load(
       '/models/VTuber3.vrm',
-      (gltf) => {
+      async (gltf) => {
         const vrm = gltf.userData.vrm;
         if (!vrm) {
           console.error('[VTuber] File loaded but VRM data missing — not a valid VRM file?');
@@ -143,56 +112,88 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
         vrmRef.current = vrm;
         group.add(vrm.scene);
         onReady?.();   // signal to VTuberChat that the model is in the scene
+        springResetRef.current = 0; // schedule spring reset on next frame
 
-        // ── Diagnostic dump: tells us exactly what the VRM contains ───────────
-        console.group('[VTuber] VRM loaded');
-        console.log('meta:', vrm.meta);
-        console.log('gltf.animations:', gltf.animations);
-        console.log('gltf.animations count:', gltf.animations?.length ?? 0);
-        console.log('humanoid bone count:', Object.keys(vrm.humanoid?.humanBones ?? {}).length);
-        console.log('expressions:', Object.keys(vrm.expressionManager?.expressionMap ?? {}));
-        console.log('has springBoneManager:', !!vrm.springBoneManager);
-        console.log('gltf.userData keys:', Object.keys(gltf.userData ?? {}));
-        console.log('gltf.parser.json.animations (raw):', gltf.parser?.json?.animations);
-        console.log('gltf.parser.json.extensions:', Object.keys(gltf.parser?.json?.extensions ?? {}));
-        console.log('vrm (full object):', vrm);
-        console.groupEnd();
+        // ── Load every VRMA in the manifest in parallel ──────────────────────
+        // Files that 404 or fail to parse are skipped silently — she still
+        // works with whatever clips successfully load.
+        const mixer = new THREE.AnimationMixer(vrm.scene);
+        mixerRef.current = mixer;
 
-        // Play any animations embedded in the VRM/GLTF file.
-        // CRITICAL: tracks target the RAW skeleton by default, but vrm.update()
-        // overwrites raw bones from the normalized humanoid every frame. We
-        // must retarget each clip onto the normalized skeleton so the mixer's
-        // output becomes the source of truth that vrm.update() then propagates.
-        if (gltf.animations?.length > 0) {
-          const mixer = new THREE.AnimationMixer(vrm.scene);
-          gltf.animations.forEach((clip) => {
-            const retargeted = retargetClipForVRM(clip, vrm);
-            mixer.clipAction(retargeted).play();
-          });
-          mixerRef.current = mixer;
-          console.info(`[VTuber] playing ${gltf.animations.length} embedded animation(s)`);
-        } else {
-          // Fallback idle arm pose — only used when the VRM has no animations.
-          // With an animation playing, this would fight the mixer every frame.
-          const h = vrm.humanoid;
-          h.getNormalizedBoneNode('leftUpperArm') ?.rotation.set(0, 0, -1.2);
-          h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0,  1.2);
-          h.getNormalizedBoneNode('leftLowerArm') ?.rotation.set(0, 0, -0.2);
-          h.getNormalizedBoneNode('rightLowerArm')?.rotation.set(0, 0,  0.2);
-          h.getNormalizedBoneNode('leftHand')     ?.rotation.set(0, 0, -0.1);
-          h.getNormalizedBoneNode('rightHand')    ?.rotation.set(0, 0,  0.1);
+        const entries = await Promise.all(
+          Object.entries(VRMA_MANIFEST).map(async ([name, url]) => {
+            try {
+              const g = await loader.loadAsync(url);
+              const vrmAnim = g.userData.vrmAnimations?.[0];
+              if (!vrmAnim) return null;
+              // createVRMAnimationClip binds tracks to the normalized humanoid
+              // so vrm.update() propagates them out to raw bones correctly.
+              const clip = createVRMAnimationClip(vrmAnim, vrm);
+              const action = mixer.clipAction(clip);
+              action.setEffectiveWeight(0);      // start silent; playEmote fades in
+              action.play();
+              return [name, action];
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        entries.filter(Boolean).forEach(([name, action]) => {
+          actionsRef.current[name] = action;
+        });
+
+        const loaded = Object.keys(actionsRef.current);
+        console.info(`[VTuber] loaded ${loaded.length}/${Object.keys(VRMA_MANIFEST).length} animations:`, loaded);
+
+        // Start the idle loop (or any first available clip)
+        const startName = actionsRef.current[DEFAULT_EMOTE] ? DEFAULT_EMOTE : loaded[0];
+        if (startName) {
+          actionsRef.current[startName].setEffectiveWeight(1);
+          currentEmoteRef.current = startName;
         }
-
-        // Mark reset as pending — useFrame fires it on the very first frame
-        // where group.updateMatrixWorld() has already run (correct world pos).
-        // Keeping default spring stiffness: the per-frame updateMatrixWorld()
-        // call + this one-shot reset is enough to stop hair from exploding.
-        springResetRef.current = 0;
       },
       undefined, // suppress per-chunk progress logs
       (err) => console.error('[VTuber] load failed:', err?.message ?? err),
     );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Expose emote API to parent — playEmote crossfades between clips and
+  // auto-returns to the idle loop when a one-shot finishes.
+  useEffect(() => {
+    if (!emoteRef) return;
+    emoteRef.current = {
+      list: () => Object.keys(actionsRef.current),
+      play: (name) => {
+        const actions = actionsRef.current;
+        const next = actions[name];
+        if (!next) return false;
+        const currentName = currentEmoteRef.current;
+        const current = currentName ? actions[currentName] : null;
+        if (current === next) return true;
+
+        next.reset().setEffectiveWeight(1).fadeIn(EMOTE_FADE).play();
+        if (current) current.fadeOut(EMOTE_FADE);
+        currentEmoteRef.current = name;
+
+        // If this emote isn't the idle loop, return to idle when it ends
+        if (name !== DEFAULT_EMOTE && actions[DEFAULT_EMOTE]) {
+          const mixer = mixerRef.current;
+          const onFinished = (e) => {
+            if (e.action !== next) return;
+            mixer.removeEventListener('finished', onFinished);
+            actions[DEFAULT_EMOTE].reset().setEffectiveWeight(1).fadeIn(EMOTE_FADE).play();
+            next.fadeOut(EMOTE_FADE);
+            currentEmoteRef.current = DEFAULT_EMOTE;
+          };
+          next.setLoop(THREE.LoopOnce, 1);
+          next.clampWhenFinished = true;
+          mixer?.addEventListener('finished', onFinished);
+        }
+        return true;
+      },
+    };
+  }, [emoteRef]);
 
   useFrame((state, delta) => {
     const group = groupRef.current;
@@ -292,8 +293,10 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
       }
     }
 
-    // ── 6. Idle breathing — skip if AnimationMixer is driving bones ───────
-    if (vrm?.humanoid && !mixerRef.current) {
+    // ── 6. Idle breathing — fallback pose, only if no VRMA clips loaded ───
+    // If any emote action exists, the mixer is driving bones and this would
+    // fight it. Without actions, give her a gentle idle pose.
+    if (vrm?.humanoid && Object.keys(actionsRef.current).length === 0) {
       const t       = state.clock.elapsedTime;
       const breathe = Math.sin(t * 0.9) * 0.025;
       const h       = vrm.humanoid;
