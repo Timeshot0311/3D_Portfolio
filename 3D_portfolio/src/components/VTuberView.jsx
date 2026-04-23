@@ -144,6 +144,20 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef }
         group.add(vrm.scene);
         onReady?.();   // signal to VTuberChat that the model is in the scene
 
+        // ── Diagnostic dump: tells us exactly what the VRM contains ───────────
+        console.group('[VTuber] VRM loaded');
+        console.log('meta:', vrm.meta);
+        console.log('gltf.animations:', gltf.animations);
+        console.log('gltf.animations count:', gltf.animations?.length ?? 0);
+        console.log('humanoid bone count:', Object.keys(vrm.humanoid?.humanBones ?? {}).length);
+        console.log('expressions:', Object.keys(vrm.expressionManager?.expressionMap ?? {}));
+        console.log('has springBoneManager:', !!vrm.springBoneManager);
+        console.log('gltf.userData keys:', Object.keys(gltf.userData ?? {}));
+        console.log('gltf.parser.json.animations (raw):', gltf.parser?.json?.animations);
+        console.log('gltf.parser.json.extensions:', Object.keys(gltf.parser?.json?.extensions ?? {}));
+        console.log('vrm (full object):', vrm);
+        console.groupEnd();
+
         // Play any animations embedded in the VRM/GLTF file.
         // CRITICAL: tracks target the RAW skeleton by default, but vrm.update()
         // overwrites raw bones from the normalized humanoid every frame. We
