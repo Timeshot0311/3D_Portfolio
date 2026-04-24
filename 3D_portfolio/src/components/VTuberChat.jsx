@@ -188,8 +188,7 @@ const EMOTE_PATTERNS = [
   { emote: 'wave',  re: /\b(wave|hi there|hello there|hey there|waves)\b/i },
   { emote: 'peace', re: /\b(peace|✌|peace sign)\b/i },
   { emote: 'shoot', re: /\b(shoot|pew|bang|gotcha|bullseye|nailed it|boom)\b/i },
-  { emote: 'nod',   re: /\b(yes|yeah|agree|sure|of course|definitely|correct)\b/i },
-  { emote: 'shake', re: /\b(no|nope|disagree|wrong|incorrect|don.?t think)\b/i },
+  { emote: 'pose',  re: /\b(pose|striking|ta.?da|behold|look at me|check me out)\b/i },
   { emote: 'dance', re: /\b(dance|dancing|let.?s go|party|celebrate|woo)\b/i },
 ];
 
