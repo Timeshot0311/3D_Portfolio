@@ -22,8 +22,7 @@ const VRMA_MANIFEST = {
   peace: '/animations/peace.vrma',
   shoot: '/animations/shoot.vrma',
   dance: '/animations/dance.vrma',
-  nod:   '/animations/nod.vrma',
-  shake: '/animations/shake.vrma',
+  pose:  '/animations/pose.vrma',
 };
 const DEFAULT_EMOTE = 'idle';
 // How long to spend crossfading between emotes (seconds)

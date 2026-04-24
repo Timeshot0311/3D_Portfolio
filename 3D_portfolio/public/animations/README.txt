@@ -7,9 +7,8 @@ Expected filenames (referenced by VRMA_MANIFEST in VTuberView.jsx):
   wave.vrma    ← triggered by "wave", "hi there", "hello there"
   peace.vrma   ← triggered by "peace", "peace sign", "✌"
   shoot.vrma   ← triggered by "shoot", "pew", "bang", "gotcha", "nailed it"
+  pose.vrma    ← triggered by "pose", "ta-da", "behold", "check me out"
   dance.vrma   ← triggered by "dance", "let's go", "party"
-  nod.vrma     ← triggered by "yes", "sure", "of course"
-  shake.vrma   ← triggered by "no", "nope", "don't think"
 
 WHERE TO GET FREE VRMA FILES:
 
