@@ -20,7 +20,7 @@ const VRMA_MANIFEST = {
   idle:  '/animations/idle.vrma',
   wave:  '/animations/wave.vrma',
   peace: '/animations/peace.vrma',
-  bow:   '/animations/bow.vrma',
+  shoot: '/animations/shoot.vrma',
   dance: '/animations/dance.vrma',
   nod:   '/animations/nod.vrma',
   shake: '/animations/shake.vrma',

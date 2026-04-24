@@ -72,8 +72,10 @@ function useMic(onTranscript) {
   return { toggle, listening };
 }
 
-// Browser TTS fallback (used when ElevenLabs key is absent)
-function browserSpeak(text, onSpeakingChange, onEnd) {
+// Browser TTS fallback (used when ElevenLabs key is absent).
+// onStart fires when the voice ACTUALLY begins speaking, not when the
+// utterance is queued — that's the handshake we hang lip sync + emote on.
+function browserSpeak(text, onSpeakingChange, onStart, onEnd) {
   if (!window.speechSynthesis) { onEnd?.(); return; }
   window.speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);
@@ -83,7 +85,7 @@ function browserSpeak(text, onSpeakingChange, onEnd) {
     /jenny|aria|zira|samantha|victoria|fiona|karen|moira|female|woman/i.test(v.name),
   ) ?? voices.find((v) => v.lang?.startsWith('en')) ?? null;
   if (pick) utter.voice = pick;
-  utter.onstart = () => onSpeakingChange(true);
+  utter.onstart = () => { onSpeakingChange(true); onStart?.(); };
   utter.onend   = () => { onSpeakingChange(false); onEnd?.(); };
   utter.onerror = () => { onSpeakingChange(false); onEnd?.(); };
   window.speechSynthesis.speak(utter);
@@ -92,49 +94,83 @@ function browserSpeak(text, onSpeakingChange, onEnd) {
 function useSpeech(onSpeakingChange) {
   const audioRef = useRef(null);
 
-  const speak = async (text, onEnd) => {
+  /**
+   * Speak `text` via ElevenLabs (or browser TTS fallback).
+   * Returns a Promise that resolves when the audio actually STARTS playing —
+   * callers can await it to sync bubble/emote with the voice, eliminating the
+   * awkward "mouth moves / she emotes before sound comes out" gap caused by
+   * the ~300–1500ms TTS fetch latency.
+   *
+   * - onStart fires at the exact moment audio begins (same trigger as the
+   *   returned promise resolves).
+   * - onEnd fires when playback finishes.
+   */
+  const speak = (text, { onStart, onEnd } = {}) => new Promise((resolve) => {
     // Stop any in-progress audio
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     window.speechSynthesis?.cancel();
 
-    try {
-      const res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-
-      if (!res.ok) {
-        const detail = await res.json().catch(() => ({}));
-        console.warn('[TTS] ElevenLabs failed:', res.status, detail?.error ?? '');
-        throw new Error('ElevenLabs unavailable');
-      }
-
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.volume = 0.55;
-      audioRef.current = audio;
-
+    const fireStart = () => {
       onSpeakingChange(true);
-      audio.onended = () => {
-        onSpeakingChange(false);
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-        onEnd?.();
-      };
-      audio.onerror = () => {
-        onSpeakingChange(false);
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-        onEnd?.();
-      };
-      await audio.play();
-    } catch {
-      // Fall back to browser TTS (no key set, or network error)
-      browserSpeak(text, onSpeakingChange, onEnd);
-    }
-  };
+      onStart?.();
+      resolve();
+    };
+
+    (async () => {
+      try {
+        const res = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+
+        if (!res.ok) {
+          const detail = await res.json().catch(() => ({}));
+          console.warn('[TTS] ElevenLabs failed:', res.status, detail?.error ?? '');
+          throw new Error('ElevenLabs unavailable');
+        }
+
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.volume = 0.55;
+        audioRef.current = audio;
+
+        // `playing` fires when audio is actually producing sound — this is
+        // the moment we want to sync mouth + emote with. `play()` returning
+        // a resolved promise only means decoding started, not that audio
+        // is audible yet.
+        let started = false;
+        const start = () => {
+          if (started) return;
+          started = true;
+          fireStart();
+        };
+        audio.addEventListener('playing', start, { once: true });
+
+        audio.onended = () => {
+          onSpeakingChange(false);
+          URL.revokeObjectURL(url);
+          audioRef.current = null;
+          onEnd?.();
+        };
+        audio.onerror = () => {
+          onSpeakingChange(false);
+          URL.revokeObjectURL(url);
+          audioRef.current = null;
+          onEnd?.();
+          if (!started) resolve(); // don't leave callers hanging
+        };
+        await audio.play();
+        // Safety net: some browsers fire `playing` late or not at all.
+        // If we get here and it hasn't fired within 200ms, force-start.
+        setTimeout(start, 200);
+      } catch {
+        // Browser TTS fallback — same handshake contract
+        browserSpeak(text, onSpeakingChange, fireStart, onEnd);
+      }
+    })();
+  });
 
   const cancel = () => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
@@ -151,7 +187,7 @@ function useSpeech(onSpeakingChange) {
 const EMOTE_PATTERNS = [
   { emote: 'wave',  re: /\b(wave|hi there|hello there|hey there|waves)\b/i },
   { emote: 'peace', re: /\b(peace|✌|peace sign)\b/i },
-  { emote: 'bow',   re: /\b(bow|thank you|thanks|arigato|gratitude)\b/i },
+  { emote: 'shoot', re: /\b(shoot|pew|bang|gotcha|bullseye|nailed it|boom)\b/i },
   { emote: 'nod',   re: /\b(yes|yeah|agree|sure|of course|definitely|correct)\b/i },
   { emote: 'shake', re: /\b(no|nope|disagree|wrong|incorrect|don.?t think)\b/i },
   { emote: 'dance', re: /\b(dance|dancing|let.?s go|party|celebrate|woo)\b/i },
@@ -203,9 +239,12 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
         if (!cancelled) setBubble(IDLE_BUBBLE);
         return;
       }
-      setBubble(INTRO_LINES[idx]);
-      speak(cleanForTTS(INTRO_LINES[idx]), () => {
-        setTimeout(() => runIntro(idx + 1), 400);
+      const line = INTRO_LINES[idx];
+      // Show the bubble only at the moment audio starts, so text + voice
+      // + mouth animation all appear in sync (no "bubble up, silence" gap).
+      speak(cleanForTTS(line), {
+        onStart: () => setBubble(line),
+        onEnd:   () => setTimeout(() => runIntro(idx + 1), 400),
       });
     };
 
@@ -267,16 +306,29 @@ export default function VTuberChat({ onSpeakingChange, vtuberReady = false, open
       }
       historyRef.current = [...historyRef.current, { role: 'assistant', content: reply }];
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
-      setBubble(reply);
-      speak(cleanForTTS(reply));
-      // Fire an emote if the reply hints at one. Silently no-ops if the clip isn't loaded.
+      // Hold bubble + emote until the voice actually starts. Syncs text,
+      // audio, lip movement and emote all to the same moment. 2.5s watchdog
+      // so the bubble isn't stuck forever if TTS silently fails.
       const emote = pickEmote(reply);
-      if (emote) emoteRef?.current?.play?.(emote);
+      let shown = false;
+      const reveal = () => { if (!shown) { shown = true; setBubble(reply); } };
+      const watchdog = setTimeout(reveal, 2500);
+      speak(cleanForTTS(reply), {
+        onStart: () => {
+          clearTimeout(watchdog);
+          reveal();
+          if (emote) emoteRef?.current?.play?.(emote);
+        },
+      });
     } catch {
       const reply = FALLBACK_LINES[Math.floor(Math.random() * FALLBACK_LINES.length)];
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
-      setBubble(reply);
-      speak(cleanForTTS(reply));
+      let shown = false;
+      const reveal = () => { if (!shown) { shown = true; setBubble(reply); } };
+      const watchdog = setTimeout(reveal, 2500);
+      speak(cleanForTTS(reply), {
+        onStart: () => { clearTimeout(watchdog); reveal(); },
+      });
     } finally {
       setLoading(false);
     }

@@ -6,7 +6,7 @@ Expected filenames (referenced by VRMA_MANIFEST in VTuberView.jsx):
   idle.vrma    ← default looping idle (REQUIRED for a nice default pose)
   wave.vrma    ← triggered by "wave", "hi there", "hello there"
   peace.vrma   ← triggered by "peace", "peace sign", "✌"
-  bow.vrma     ← triggered by "thanks", "thank you", "bow"
+  shoot.vrma   ← triggered by "shoot", "pew", "bang", "gotcha", "nailed it"
   dance.vrma   ← triggered by "dance", "let's go", "party"
   nod.vrma     ← triggered by "yes", "sure", "of course"
   shake.vrma   ← triggered by "no", "nope", "don't think"
