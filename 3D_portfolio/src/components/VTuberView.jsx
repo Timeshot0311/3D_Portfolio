@@ -106,38 +106,51 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef, 
         // camera inside our group. No-op for VRM1.
         VRMUtils.rotateVRM0(vrm);
 
-        // ── Spring-bone diagnostics + gravity fix ───────────────────────────
-        // The model often ships with gravityPower=0 (VRoid Studio default for
-        // T-pose preview), so springs wobble around bind pose forever without
-        // ever falling. Force a minimum gravity + explicit downward direction.
-        // Logs the joint state so we can tune further if hair still misbehaves.
+        // ── Spring-bone fix: classify hair vs bust vs other, tune each ──────
+        // VRoid VRMs commonly ship with stiffness=4 across all secondary bones,
+        // which is fine for bust (bouncy jiggle) but devastating for hair —
+        // springs yank hair back to its authored bind pose before gravity can
+        // move it, and if that bind pose points up the result is "super saiyan"
+        // hair. Tune by bone-name category.
         const sbm = vrm.springBoneManager;
         if (sbm?.joints) {
-          const sample = [];
-          let i = 0;
+          const samples = { hair: [], bust: [], other: [] };
+          const counts  = { hair: 0,  bust: 0,  other: 0  };
           for (const joint of sbm.joints) {
-            const s = joint.settings ?? joint;
-            if (i < 3) {
-              sample.push({
-                bone: joint.bone?.name,
-                stiffness: s.stiffnessForce ?? s.stiffness,
+            const s    = joint.settings ?? joint;
+            const name = joint.bone?.name ?? '';
+            const isHair = /hair/i.test(name);
+            const isBust = /bust|breast/i.test(name);
+            const cat = isHair ? 'hair' : isBust ? 'bust' : 'other';
+            counts[cat]++;
+            if (samples[cat].length < 2) {
+              samples[cat].push({
+                bone: name,
+                stiffness: s.stiffness,
                 drag: s.dragForce,
                 gravityPower: s.gravityPower,
-                gravityDir: s.gravityDir ? `${s.gravityDir.x.toFixed(2)},${s.gravityDir.y.toFixed(2)},${s.gravityDir.z.toFixed(2)}` : 'none',
-                hitRadius: s.hitRadius,
               });
             }
-            // Force gravity so hair actually falls
-            if (s) {
-              if (s.gravityPower !== undefined) s.gravityPower = Math.max(s.gravityPower, 0.3);
+            if (!s) continue;
+            if (cat === 'hair') {
+              // Hair: soften so it can fall, add gravity, more drag to settle
+              if (s.stiffness    !== undefined) s.stiffness    = Math.min(s.stiffness, 0.8);
+              if (s.dragForce    !== undefined) s.dragForce    = Math.max(s.dragForce, 0.5);
+              if (s.gravityPower !== undefined) s.gravityPower = Math.max(s.gravityPower, 0.5);
               if (s.gravityDir?.set) s.gravityDir.set(0, -1, 0);
-              if (s.dragForce !== undefined && s.dragForce < 0.4) s.dragForce = 0.4;
+            } else if (cat === 'bust') {
+              // Bust: keep authored jiggle, just touch gravity if it's truly 0
+              if (s.gravityPower !== undefined && s.gravityPower < 0.05) s.gravityPower = 0.05;
+            } else {
+              // Other secondaries (skirt, accessory): mild gravity + moderate stiffness
+              if (s.stiffness    !== undefined) s.stiffness    = Math.min(s.stiffness, 1.5);
+              if (s.dragForce    !== undefined) s.dragForce    = Math.max(s.dragForce, 0.4);
+              if (s.gravityPower !== undefined) s.gravityPower = Math.max(s.gravityPower, 0.3);
             }
-            i++;
           }
-          console.info(`[VTuber] spring joints: ${sbm.joints.size ?? sbm.joints.length ?? 'n/a'}, sample:`, sample);
+          console.info(`[VTuber] spring joints: ${sbm.joints.size ?? sbm.joints.length ?? 'n/a'} | hair=${counts.hair} bust=${counts.bust} other=${counts.other}`, samples);
         } else {
-          console.warn('[VTuber] no springBoneManager / no joints — model has no spring bones, hair physics unavailable');
+          console.warn('[VTuber] no springBoneManager / no joints — hair physics unavailable');
         }
 
         vrmRef.current = vrm;
