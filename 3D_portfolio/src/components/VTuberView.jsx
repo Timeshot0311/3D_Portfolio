@@ -148,7 +148,23 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef, 
               if (s.gravityPower !== undefined) s.gravityPower = Math.max(s.gravityPower, 0.3);
             }
           }
-          console.info(`[VTuber] spring joints: ${sbm.joints.size ?? sbm.joints.length ?? 'n/a'} | hair=${counts.hair} bust=${counts.bust} other=${counts.other}`, samples);
+          // Verify mutations actually stuck (some three-vrm versions wrap settings)
+          const verify = [];
+          let vi = 0;
+          for (const joint of sbm.joints) {
+            const s = joint.settings ?? joint;
+            const name = joint.bone?.name ?? '';
+            if (/hair/i.test(name) && verify.length < 2) {
+              verify.push({
+                bone: name,
+                stiffness: s.stiffness,
+                drag: s.dragForce,
+                gravityPower: s.gravityPower,
+              });
+            }
+            vi++;
+          }
+          console.info(`[VTuber] spring joints: ${sbm.joints.size ?? sbm.joints.length ?? 'n/a'} | hair=${counts.hair} chest=${counts.bust} other=${counts.other}`, { authored: samples, postFix: verify });
         } else {
           console.warn('[VTuber] no springBoneManager / no joints — hair physics unavailable');
         }
