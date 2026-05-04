@@ -116,6 +116,15 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef, 
         if (sbm?.joints) {
           const samples = { hair: [], bust: [], other: [] };
           const counts  = { hair: 0,  bust: 0,  other: 0  };
+          // One-time deep dump of a hair joint so we can see field shape
+          let dumped = false;
+          // Helper that writes to BOTH the settings object AND the joint
+          // directly, so we hit whichever path three-vrm reads from.
+          const writeBoth = (joint, key, value) => {
+            const s = joint.settings;
+            if (s && s[key] !== undefined) s[key] = value;
+            if (joint[key] !== undefined && typeof joint[key] !== 'function') joint[key] = value;
+          };
           for (const joint of sbm.joints) {
             const s    = joint.settings ?? joint;
             const name = joint.bone?.name ?? '';
@@ -131,21 +140,30 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef, 
                 gravityPower: s.gravityPower,
               });
             }
+            if (isHair && !dumped) {
+              dumped = true;
+              console.info('[VTuber] FULL hair joint dump:', {
+                jointKeys: Object.keys(joint),
+                settingsKeys: joint.settings ? Object.keys(joint.settings) : null,
+                joint,
+              });
+            }
             if (!s) continue;
             if (cat === 'hair') {
-              // Hair: soften so it can fall, add gravity, more drag to settle
-              if (s.stiffness    !== undefined) s.stiffness    = Math.min(s.stiffness, 0.8);
-              if (s.dragForce    !== undefined) s.dragForce    = Math.max(s.dragForce, 0.5);
-              if (s.gravityPower !== undefined) s.gravityPower = Math.max(s.gravityPower, 0.5);
+              // Stiffness near zero so spring force basically vanishes; gravity wins.
+              // Verified the mutation path works via the postFix log.
+              writeBoth(joint, 'stiffness',    0.05);
+              writeBoth(joint, 'dragForce',    0.7);
+              writeBoth(joint, 'gravityPower', 2.0);
               if (s.gravityDir?.set) s.gravityDir.set(0, -1, 0);
+              if (joint.gravityDir?.set) joint.gravityDir.set(0, -1, 0);
             } else if (cat === 'bust') {
-              // Bust: keep authored jiggle, just touch gravity if it's truly 0
-              if (s.gravityPower !== undefined && s.gravityPower < 0.05) s.gravityPower = 0.05;
+              // Chest: preserve authored jiggle, add only enough gravity to not float
+              if (s.gravityPower !== undefined && s.gravityPower < 0.05) writeBoth(joint, 'gravityPower', 0.05);
             } else {
-              // Other secondaries (skirt, accessory): mild gravity + moderate stiffness
-              if (s.stiffness    !== undefined) s.stiffness    = Math.min(s.stiffness, 1.5);
-              if (s.dragForce    !== undefined) s.dragForce    = Math.max(s.dragForce, 0.4);
-              if (s.gravityPower !== undefined) s.gravityPower = Math.max(s.gravityPower, 0.3);
+              writeBoth(joint, 'stiffness',    Math.min(s.stiffness ?? 1.5, 1.5));
+              writeBoth(joint, 'dragForce',    Math.max(s.dragForce ?? 0,   0.4));
+              writeBoth(joint, 'gravityPower', Math.max(s.gravityPower ?? 0, 0.3));
             }
           }
           // Verify mutations actually stuck (some three-vrm versions wrap settings)
