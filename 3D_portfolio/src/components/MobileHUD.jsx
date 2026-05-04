@@ -2,9 +2,7 @@
 // Mobile touch overlay — rendered OUTSIDE <Canvas> in App.jsx.
 // Writes to module-level move/look/mobilePreset shared with MobileControls.jsx.
 import { useEffect, useRef } from 'react';
-import { IS_TOUCH, move, look, mobilePreset } from './MobileControls';
-import { quatFromLookAt, CAMERA_PRESETS } from './FreeCameraControls';
-import * as THREE from 'three';
+import { IS_TOUCH, move, look } from './MobileControls';
 
 const JOYSTICK_R  = 48;
 const KNOB_R      = 20;
@@ -18,14 +16,6 @@ function mBtn(bg, color, border = 'none') {
     WebkitBackdropFilter: 'blur(8px)',
   };
 }
-
-const goToPreset = (idx) => {
-  const p = CAMERA_PRESETS[idx];
-  if (!p) return;
-  mobilePreset.target  = p.position.clone();
-  mobilePreset.quat    = quatFromLookAt(p.position, p.lookAt);
-  mobilePreset.lerping = true;
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props:
@@ -192,28 +182,6 @@ export default function MobileHUD({ mode, setMode }) {
     );
   }
 
-  // ── Preset mode — navigation buttons ──
-  return (
-    <div style={{
-      position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
-      display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center',
-      zIndex: 9999, maxWidth: '95vw',
-    }}>
-      {CAMERA_PRESETS.map((p, i) => (
-        <button
-          key={p.name}
-          onTouchStart={(e) => { e.preventDefault(); goToPreset(i); }}
-          style={mBtn('#0f172acc', '#e2e8f0', '1px solid rgba(255,255,255,0.15)')}
-        >
-          {p.name}
-        </button>
-      ))}
-      <button
-        onTouchStart={(e) => { e.preventDefault(); setMode('confirming'); }}
-        style={mBtn('rgba(59,130,246,0.15)', '#93c5fd', '1px solid rgba(59,130,246,0.3)')}
-      >
-        🔓 Free Camera
-      </button>
-    </div>
-  );
+  // ── Preset mode — CameraHUD now serves mobile too, so render nothing here ──
+  return null;
 }

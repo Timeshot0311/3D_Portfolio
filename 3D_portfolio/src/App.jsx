@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { Suspense, useState, useRef, useEffect } from 'react';
-import { useProgress, useGLTF } from '@react-three/drei';
+import { useProgress } from '@react-three/drei';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 import RoomScene from './models/RoomScene';
@@ -13,8 +13,6 @@ import MobileControls from './components/MobileControls';
 import CameraHUD from './components/CameraHUD';
 import MobileHUD from './components/MobileHUD';
 import VTuberChat from './components/VTuberChat';
-
-useGLTF.preload('/models/VTuber3.vrm');
 
 export default function App() {
   const { progress } = useProgress();
@@ -45,7 +43,15 @@ export default function App() {
   useEffect(() => {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
-    loader.load('/models/VTuber3.vrm', () => setVrmPreloaded(true), undefined, () => setVrmPreloaded(true));
+    loader.load(
+      '/models/VTuber3.vrm',
+      () => setVrmPreloaded(true),
+      undefined,
+      (err) => {
+        console.error('[VTuber] Preload failed:', err?.message ?? err);
+        setVrmPreloaded(false);
+      }
+    );
   }, []);
 
   const handleEnter = () => {

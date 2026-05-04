@@ -105,8 +105,6 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef, 
         // VRM0 models face -Z by default; rotate them 180° so they face the
         // camera inside our group. No-op for VRM1.
         VRMUtils.rotateVRM0(vrm);
-        // combineSkeletons is the recommended optimisation (removeUnnecessaryJoints deprecated)
-        VRMUtils.combineSkeletons?.(vrm.scene);
 
         vrmRef.current = vrm;
         group.add(vrm.scene);
