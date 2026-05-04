@@ -106,6 +106,40 @@ export default function VTuberView({ isSpeaking = false, onReady, screenPosRef, 
         // camera inside our group. No-op for VRM1.
         VRMUtils.rotateVRM0(vrm);
 
+        // ── Spring-bone diagnostics + gravity fix ───────────────────────────
+        // The model often ships with gravityPower=0 (VRoid Studio default for
+        // T-pose preview), so springs wobble around bind pose forever without
+        // ever falling. Force a minimum gravity + explicit downward direction.
+        // Logs the joint state so we can tune further if hair still misbehaves.
+        const sbm = vrm.springBoneManager;
+        if (sbm?.joints) {
+          const sample = [];
+          let i = 0;
+          for (const joint of sbm.joints) {
+            const s = joint.settings ?? joint;
+            if (i < 3) {
+              sample.push({
+                bone: joint.bone?.name,
+                stiffness: s.stiffnessForce ?? s.stiffness,
+                drag: s.dragForce,
+                gravityPower: s.gravityPower,
+                gravityDir: s.gravityDir ? `${s.gravityDir.x.toFixed(2)},${s.gravityDir.y.toFixed(2)},${s.gravityDir.z.toFixed(2)}` : 'none',
+                hitRadius: s.hitRadius,
+              });
+            }
+            // Force gravity so hair actually falls
+            if (s) {
+              if (s.gravityPower !== undefined) s.gravityPower = Math.max(s.gravityPower, 0.3);
+              if (s.gravityDir?.set) s.gravityDir.set(0, -1, 0);
+              if (s.dragForce !== undefined && s.dragForce < 0.4) s.dragForce = 0.4;
+            }
+            i++;
+          }
+          console.info(`[VTuber] spring joints: ${sbm.joints.size ?? sbm.joints.length ?? 'n/a'}, sample:`, sample);
+        } else {
+          console.warn('[VTuber] no springBoneManager / no joints — model has no spring bones, hair physics unavailable');
+        }
+
         vrmRef.current = vrm;
         group.add(vrm.scene);
         onReady?.();   // signal to VTuberChat that the model is in the scene
